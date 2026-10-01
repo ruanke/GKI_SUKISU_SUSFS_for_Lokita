@@ -23,6 +23,8 @@ GhostLock 是影响 Linux 内核的一组高风险漏洞，包括 `CVE-2026-4349
 
 本项目支持在构建 5.10、5.15、6.1、6.6 和 6.12 内核时检查并应用完整修复。该选项默认关闭（ShirkNeko 原仓库没有携带该修复），如需加入 GhostLock 防护，请在触发构建时手动开启 `CVE-2026-43499 rtmutex 修复链`。两个漏洞的修复必须同时存在，工作流会自动处理这一点；已经包含完整修复的内核不会重复打补丁。
 
+> **关于 patch 文件**：只有 `CVE-2026-43499` 在 `security_patch/` 目录下有独立 `.patch` 文件（按内核版本分为 5.10 / 5.15 / 6.1-6.6 / 6.12 五个）。`CVE-2026-53163` 的后续修复由 `security_patch/apply_cve_2026_43499.sh` **内联生成**（`ensure_remove_waiter_null_guard` 与 `replace_proxy_cleanup_condition` 两个 awk 函数），因此**没有独立的 `.patch` 文件**——这是设计如此，不是遗漏。
+
 该修复已完成 [84 个内核版本的全量构建验证](https://github.com/zzh20188/GKI_KernelSU_SUSFS/actions/runs/29509099128)。如果想了解漏洞原理、受影响范围、公开利用和缓解措施，请阅读 CIQ 的详细文章：[GhostLock Mitigation](https://kb.ciq.com/article/rocky-linux/rl-ghostlock-mitigation)。
 
 ---
@@ -55,6 +57,34 @@ GhostLock 是影响 Linux 内核的一组高风险漏洞，包括 `CVE-2026-4349
 - `obj-m := rekernel.o` 被改写为 `obj-$(CONFIG_REKERNEL) += rekernel.o`
 - `depends on MODULES` 被移除（内置编译不需要模块支持）
 - 通过 `source "drivers/rekernel/Kconfig"` 挂进驱动树
+
+---
+
+## 🌐 网络增强（可选）
+
+一次性启用若干**内核既有**的网络能力，不涉及第三方代码，全部通过 defconfig 写入：
+
+| 类别 | 内容 |
+|---|---|
+| 拥塞控制 | `CONFIG_TCP_CONG_BBR=y` + `CONFIG_DEFAULT_BBR=y`（BBR 设为默认），另内建 BIC / CUBIC / WESTWOOD / HTCP |
+| 队列调度 | `CONFIG_NET_SCH_FQ=y`、`CONFIG_NET_SCH_FQ_CODEL=y` |
+| IPSet | `CONFIG_IP_SET=y`，集合上限 `CONFIG_IP_SET_MAX=65534`，并启用全部 bitmap / hash / list 类型 |
+| Netfilter | `CONFIG_NETFILTER_XT_SET`、`CONFIG_NETFILTER_XT_MATCH_ADDRTYPE` |
+| IPv6 NAT | `CONFIG_IP6_NF_NAT=y`、`CONFIG_IP6_NF_TARGET_MASQUERADE=y` |
+
+**为什么强制内建（`=y`）而不是模块（`=m`）**：BIC / WESTWOOD / HTCP 在 mainline Kconfig 里
+是 `default m`，一旦编成 `tcp_bic.ko` 这类模块，而 GKI 的 `module_outs` 并未声明它们，
+bazel 会直接构建失败。所以本阶段写入时会把已存在的 `=m` 一并改成 `=y`。
+
+**开启方式**
+
+| 入口 | 参数 |
+|---|---|
+| Actions | `use_net_enhance`（**默认关闭**） |
+| 本地 CLI | `--net-enhance` |
+
+> 用户态需自行准备 `ipset` 工具：内核只提供能力，不附带用户态程序。
+> IPSet 的 `CONFIG_IP_SET_MAX=65534` 落在内核 Kconfig 的 range（2–65534）内，无需改源码。
 - defconfig 追加 `CONFIG_REKERNEL=y` 与 `CONFIG_REKERNEL_NETWORK=y`
 
 > **为什么要内置：** Re-Kernel 依赖 `kallsyms_lookup_name` 等内核内部符号，
@@ -85,7 +115,7 @@ GhostLock 是影响 Linux 内核的一组高风险漏洞，包括 `CVE-2026-4349
 构建期从上游拉取 `setup.sh` 并执行，完成后校验 `fs/nomount` 软链接是否就位，
 再向 defconfig 追加 `CONFIG_NOMOUNT=y`。
 
-该阶段（`integrate_nomount`）在 46 个构建阶段中排第 25 位，**顺序有硬约束**：
+该阶段（`integrate_nomount`）在 47 个构建阶段中排第 25 位，**顺序有硬约束**：
 
 - 必须在 `gen_susfs_patch` **之后** —— 否则它的改动会被算进导出的 `susfs.patch`
 - 必须在 `backup_defconfig` **之后** —— 否则 `CONFIG_NOMOUNT` 不会被 bazel fragment 的 diff 捕获

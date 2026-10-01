@@ -130,6 +130,8 @@ def build_env(args, android, kernel, sub_level, os_patch):
         "USE_KPM": KPM_MODES.get(args.kpm or "", "disabled (关闭)"),
         "USE_BBG": str(args.bbg).lower(),
         "USE_REKERNEL": str(args.rekernel).lower(),
+        "USE_NET_ENHANCE": str(getattr(args, "net_enhance", False)).lower(),
+        "SKIP_INCOMPATIBLE": str(getattr(args, "skip_incompatible", False)).lower(),
         # [移植] NoMount 挂载元模块：与 Actions 的 use_nomount 对齐，
         # 否则本地 CLI 无法开启该阶段（USE_NOMOUNT 恒为 false）。
         "USE_NOMOUNT": str(getattr(args, "nomount", False)).lower(),
@@ -140,6 +142,10 @@ def build_env(args, android, kernel, sub_level, os_patch):
         "CVE_2026_43499_PATCH": str(args.cve_patch).lower(),
         "EXPORT_SUSFS_PATCHES": str(args.export_susfs_patches).lower(),
         "EXPECTED_KPM_PATCH_SHA256": args.kpm_patch_sha256 or "",
+        # 提交锁定：与 CI 的 sukisu_commit / susfs_commit 对齐。此前 CLI 未构造这两个
+        # 变量，本地无法复现"CI 锁定提交、本地走默认分支"的场景，排查结论会失真。
+        "SUKISU_COMMIT": args.sukisu_commit or "",
+        "SUSFS_COMMIT": args.susfs_commit or "",
         "ARTIFACT_UPLOAD_MODE": args.artifact_mode,
         "WORKSPACE": str(args.workspace),
     }
@@ -185,8 +191,8 @@ def main():
     parser.add_argument("--sub-level", "-s", help="子版本号，如 124；省略则用最新")
     parser.add_argument("--os-patch", help="OS 补丁级别，如 2025-02")
     parser.add_argument("--revision", help="Android 12 revision（可选）")
-    parser.add_argument("--ksu-variant", default="SukiSU", choices=KSU_VARIANTS,
-                        metavar="变体", help="KernelSU 变体（默认 SukiSU）")
+    parser.add_argument("--ksu-variant", default="ReSukiSU", choices=KSU_VARIANTS,
+                        metavar="变体", help="KernelSU 变体（默认 ReSukiSU）")
     parser.add_argument("--ksu-branch-mode", default="auto", choices=["auto", "main", "builtin"],
                         metavar="{auto,main,builtin}",
                         help="SukiSU 拉取分支（仅 SukiSU 生效）：auto=跟随 SUSFS 开关自动选"
@@ -202,8 +208,17 @@ def main():
                         help="KPM 模块支持（默认 patched 开启并修补；--kpm disabled 关闭）")
     parser.add_argument("--kpm-patch-sha256", help="KPM 修补工具(patch_linux)的 sha256 锚点，"
                         "传入后做 fail-closed 比对，不符即拒绝执行（留空则不校验）")
+    parser.add_argument("--sukisu-commit", help="SukiSU 提交 hash：内核与管理器统一使用该 commit"
+                        "（仅 SukiSU 变体生效；留空则用 config/config 的 sukisu= 或分支最新）")
+    parser.add_argument("--susfs-commit", help="SUSFS 提交 hash：内核 SUSFS 修补使用该 commit"
+                        "（留空则用 config/config 的对应分支行或分支最新）")
     parser.add_argument("--bbg", action="store_true", help="启用 Baseband-guard")
     parser.add_argument("--rekernel", action="store_true", help="启用 Re-Kernel")
+    parser.add_argument("--net-enhance", action="store_true",
+                        help="启用网络增强（IPSet + BBR + FQ 队列 + IPv6 NAT + 附加拥塞算法，"
+                             "均为内核既有配置的启用）")
+    parser.add_argument("--skip-incompatible", action="store_true",
+                        help="可选功能失败时自动跳过而非中断构建（SUSFS 与一加 8E 除外）")
     parser.add_argument("--nomount", action="store_true", help="启用 NoMount 挂载元模块")
     parser.add_argument("--no-susfs", action="store_true", help="禁用 SUSFS")
     parser.add_argument("--op8e", action="store_true", help="启用一加 8E 支持（非一加勿开）")

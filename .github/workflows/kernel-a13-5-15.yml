@@ -19,14 +19,14 @@ on:
           - ReSukiSU
           - Official
           - Next
-        default: SukiSU
+        default: ReSukiSU
       enable_susfs:
         description: "集成 SUSFS"
         required: false
         type: boolean
         default: true
       use_kpm:
-        description: "KPM 模块支持（编译后修补 Image，6.6 内核不支持）"
+        description: "KPM 模块支持（编译后修补 Image。6.12 及以上不支持：SukiSU 的 KPM 代码用了新内核已移除的 netlink_kernel_cfg.cb_mutex；6.6 是支持的）"
         required: true
         type: choice
         default: "patched (开启并修补)"
@@ -80,6 +80,16 @@ on:
         required: false
         type: boolean
         default: false
+      use_net_enhance:
+        description: "启用网络增强（IPSet + BBR + FQ 队列 + IPv6 NAT + 附加拥塞算法）"
+        required: false
+        type: boolean
+        default: false
+      skip_incompatible:
+        description: "可选功能不兼容或失败时自动跳过，而非中断构建（SUSFS 与一加 8E 除外）"
+        required: false
+        type: boolean
+        default: false
       use_nomount:
         description: "启用 NoMount 挂载元模块"
         required: false
@@ -92,16 +102,6 @@ on:
         default: false
       droidspaces_ntsync:
         description: "启用 NTSync 支持（需先启用 Droidspaces）"
-        required: false
-        type: boolean
-        default: false
-      manager_spoofed:
-        description: "一并拉取 Spoofed 管理器（伪装包名）"
-        required: false
-        type: boolean
-        default: true
-      use_bbr:
-        description: "设置 BBR 为默认拥塞算法"
         required: false
         type: boolean
         default: false
@@ -129,18 +129,8 @@ on:
           - "main"
           - "builtin"
         default: "auto"
-      sukisu_commit:
-        description: "SukiSU 提交 hash：内核与管理器统一使用该 commit（留空则用 config/config 或最新）"
-        required: false
-        type: string
-        default: ""
-      susfs_commit:
-        description: "SUSFS 提交 hash：内核 SUSFS 修补使用该 commit（留空则取 config/config 或分支最新）"
-        required: false
-        type: string
-        default: ""
-      kpm_patch_sha256:
-        description: "KPM 修补工具 sha256 锚点（留空不校验）"
+      manager_commit:
+        description: "管理器提交 hash（SukiSU/管理器 hash；可选用英文逗号后接 SUSFS hash，留空则不锁定）"
         required: false
         type: string
         default: ""
@@ -169,6 +159,16 @@ on:
         required: true
         type: string
       use_rekernel:
+        required: false
+        type: boolean
+        default: false
+      use_net_enhance:
+        description: "启用网络增强（IPSet + BBR + FQ 队列 + IPv6 NAT + 附加拥塞算法）"
+        required: false
+        type: boolean
+        default: false
+      skip_incompatible:
+        description: "可选功能不兼容或失败时自动跳过，而非中断构建（SUSFS 与一加 8E 除外）"
         required: false
         type: boolean
         default: false
@@ -208,11 +208,6 @@ on:
         type: boolean
         default: false
 
-      use_bbr:
-        description: "设置 BBR 为默认拥塞算法"
-        required: false
-        type: boolean
-        default: false
       send_telegram:
         description: "发送 Telegram 通知（需配置 secrets）"
         required: false
@@ -223,11 +218,6 @@ on:
         required: false
         type: boolean
         default: false
-      manager_spoofed:
-        description: "一并拉取 Spoofed 管理器（伪装包名）"
-        required: false
-        type: boolean
-        default: true
       supp_op:
         description: "启用一加 8E 支持（非一加勿开）"
         required: false
@@ -238,18 +228,8 @@ on:
         required: false
         type: string
         default: "auto"
-      sukisu_commit:
-        description: "SukiSU 提交 hash：内核与管理器统一使用该 commit（留空则用 config/config 或最新）"
-        required: false
-        type: string
-        default: ""
-      susfs_commit:
-        description: "SUSFS 提交 hash：内核 SUSFS 修补使用该 commit（留空则取 config/config 或分支最新）"
-        required: false
-        type: string
-        default: ""
-      kpm_patch_sha256:
-        description: "KPM 修补工具 sha256 锚点（留空不校验）"
+      manager_commit:
+        description: "管理器提交 hash（SukiSU/管理器 hash；可选用英文逗号后接 SUSFS hash，留空则不锁定）"
         required: false
         type: string
         default: ""
@@ -298,22 +278,21 @@ jobs:
       use_bbg: ${{ inputs.use_bbg }}
       use_kpm: ${{ inputs.use_kpm }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
+      use_net_enhance: ${{ inputs.use_net_enhance || false }}
+      skip_incompatible: ${{ inputs.skip_incompatible || false }}
       use_nomount: ${{ inputs.use_nomount || false }}
       cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       export_susfs_patches: ${{ inputs.export_susfs_patches || false }}
-      supp_op: false
+      supp_op: ${{ inputs.supp_op || false }}
       enable_susfs: ${{ inputs.enable_susfs }}
       # ksu_mode 不传：build.yml 默认「关闭」（正常集成 KernelSU）。
       droidspaces: ${{ inputs.droidspaces || '不启用' }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
       artifact_upload_mode: ${{ inputs.artifact_upload_mode }}
-      use_bbr: ${{ inputs.use_bbr || false }}
       send_telegram: ${{ inputs.send_telegram || false }}
       use_release_cache: ${{ inputs.use_release_cache || false }}
-      sukisu_commit: ${{ inputs.sukisu_commit || '' }}
+      manager_commit: ${{ inputs.manager_commit }}
       ksu_branch_mode: ${{ inputs.ksu_branch_mode || 'auto' }}
-      kpm_patch_sha256: ${{ inputs.kpm_patch_sha256 }}
-      susfs_commit: ${{ inputs.susfs_commit || '' }}
   # 仅在直接触发时运行，从 main.yml 调用时跳过
   get-ksu-manager:
     if: ${{ !inputs.called_from_main }}
@@ -321,6 +300,6 @@ jobs:
     secrets: inherit
     with:
       kernelsu_variant: ${{ inputs.kernelsu_variant }}
-      manager_spoofed: ${{ inputs.manager_spoofed }}
-      sukisu_commit: ${{ inputs.sukisu_commit || '' }}
+      manager_spoofed: true
+      manager_commit: ${{ inputs.manager_commit }}
       ksu_branch_mode: ${{ inputs.ksu_branch_mode || 'auto' }}

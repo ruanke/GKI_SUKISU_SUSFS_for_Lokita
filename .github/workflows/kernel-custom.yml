@@ -30,14 +30,14 @@ on:
           - ReSukiSU
           - Official
           - Next
-        default: SukiSU
+        default: ReSukiSU
       enable_susfs:
         description: "集成 SUSFS"
         required: false
         type: boolean
         default: true
       use_kpm:
-        description: "KPM 模块支持（编译后修补 Image，6.6 内核不支持）"
+        description: "KPM 模块支持（编译后修补 Image。6.12 及以上不支持：SukiSU 的 KPM 代码用了新内核已移除的 netlink_kernel_cfg.cb_mutex；6.6 是支持的）"
         required: true
         type: choice
         default: "patched (开启并修补)"
@@ -126,8 +126,12 @@ on:
         type: boolean
         default: false
 
-      use_bbr:
-        description: "设置 BBR 为默认拥塞算法"
+      # 网络增强（IPSet 全类型 + BBR + FQ/FQ_CODEL 队列 + IPv6 NAT + 附加拥塞算法）。
+      # 本项已包含「把 BBR 设为默认拥塞算法」，所以这里不再单列 use_bbr 开关：
+      # 网络增强关着却想单独要 BBR 的场景不存在，两个开关只会造成歧义。
+      # 需要单独控制 BBR 请改用单版本入口 kernel-a1*.yml（那里两者是分开的）。
+      use_net_enhance:
+        description: "网络优化（BBR 默认拥塞算法 + IPSet 全类型 + FQ/FQ_CODEL 队列 + IPv6 NAT + 附加拥塞算法内建）"
         required: false
         type: boolean
         default: false
@@ -141,23 +145,8 @@ on:
         required: false
         type: boolean
         default: false
-      manager_spoofed:
-        description: "一并拉取 Spoofed 管理器（伪装包名）"
-        required: false
-        type: boolean
-        default: true
-      sukisu_commit:
-        description: "SukiSU 提交 hash：内核与管理器统一使用该 commit（留空则用 config/config 或最新）"
-        required: false
-        type: string
-        default: ""
-      susfs_commit:
-        description: "SUSFS 提交 hash：内核 SUSFS 修补使用该 commit（留空则取 config/config 或分支最新）"
-        required: false
-        type: string
-        default: ""
-      kpm_patch_sha256:
-        description: "KPM 修补工具 sha256 锚点（留空不校验）"
+      manager_commit:
+        description: "管理器提交 hash（SukiSU/管理器 hash；可选用英文逗号后接 SUSFS hash，留空则不锁定）"
         required: false
         type: string
         default: ""
@@ -353,6 +342,8 @@ jobs:
       use_bbg: ${{ inputs.use_bbg }}
       use_kpm: ${{ inputs.use_kpm }}
       use_rekernel: ${{ inputs.use_rekernel || false }}
+      # 与 use_bbr 解耦：各自独立取值（见上方 input 定义处的说明）。
+      use_net_enhance: ${{ inputs.use_net_enhance || false }}
       use_nomount: ${{ inputs.use_nomount || false }}
       cve_2026_43499_patch: ${{ inputs.cve_2026_43499_patch }}
       supp_op: ${{ inputs.supp_op || false }}
@@ -361,16 +352,13 @@ jobs:
       droidspaces: ${{ inputs.droidspaces || '不启用' }}
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync || false }}
       artifact_upload_mode: ${{ inputs.artifact_upload_mode }}
-      use_bbr: ${{ inputs.use_bbr || false }}
       send_telegram: ${{ inputs.send_telegram || false }}
       use_release_cache: ${{ inputs.use_release_cache || false }}
-      sukisu_commit: ${{ inputs.sukisu_commit || '' }}
-      susfs_commit: ${{ inputs.susfs_commit || '' }}
-      kpm_patch_sha256: ${{ inputs.kpm_patch_sha256 }}
+      manager_commit: ${{ inputs.manager_commit }}
   get-ksu-manager:
     uses: ./.github/workflows/get-manager.yml
     secrets: inherit
     with:
       kernelsu_variant: ${{ inputs.kernelsu_variant }}
-      manager_spoofed: ${{ inputs.manager_spoofed }}
-      sukisu_commit: ${{ inputs.sukisu_commit || '' }}
+      manager_spoofed: true
+      manager_commit: ${{ inputs.manager_commit }}

@@ -24,6 +24,8 @@ The vulnerability cannot be triggered directly over the network. However, a mali
 
 This project can check and apply the complete fix when building kernels 5.10, 5.15, 6.1, 6.6, and 6.12. The option is **disabled by default** (ShirkNeko upstream does not carry this fix). Enable `CVE-2026-43499 rtmutex fix chain` when starting a build to include GhostLock protection. Both vulnerability fixes must be present together, and the workflow handles this automatically. Kernels that already contain the complete fix are not patched again.
 
+> **Note on patch files:** Only `CVE-2026-43499` has dedicated `.patch` files in `security_patch/` (one per kernel line: 5.10 / 5.15 / 6.1–6.6 / 6.12). The `CVE-2026-53163` follow-up fixes are generated **inline** by `security_patch/apply_cve_2026_43499.sh` (functions `ensure_remove_waiter_null_guard` and `replace_proxy_cleanup_condition`), so no separate `.patch` file exists for it — that is by design, not a missing artifact.
+
 The fix has passed a [full build validation covering 84 kernel versions](https://github.com/zzh20188/GKI_KernelSU_SUSFS/actions/runs/29509099128). For vulnerability details, affected systems, public exploits, and mitigation guidance, read CIQ's article: [GhostLock Mitigation](https://kb.ciq.com/article/rocky-linux/rl-ghostlock-mitigation).
 
 ---
@@ -60,6 +62,37 @@ kernel** (not as an external module), controlled by `CONFIG_REKERNEL`:
 - hooked into the driver tree via `source "drivers/rekernel/Kconfig"`
 - `CONFIG_REKERNEL=y` and `CONFIG_REKERNEL_NETWORK=y` are appended to the defconfig
 
+---
+
+## 🌐 Network enhancement (optional)
+
+Enables a batch of **pre-existing kernel** networking capabilities. No third-party code
+is involved — everything is written into the defconfig:
+
+| Category | Contents |
+|---|---|
+| Congestion control | `CONFIG_TCP_CONG_BBR=y` + `CONFIG_DEFAULT_BBR=y` (BBR becomes the default), plus BIC / CUBIC / WESTWOOD / HTCP built in |
+| Queueing disciplines | `CONFIG_NET_SCH_FQ=y`, `CONFIG_NET_SCH_FQ_CODEL=y` |
+| IPSet | `CONFIG_IP_SET=y`, `CONFIG_IP_SET_MAX=65534`, and every bitmap / hash / list type |
+| Netfilter | `CONFIG_NETFILTER_XT_SET`, `CONFIG_NETFILTER_XT_MATCH_ADDRTYPE` |
+| IPv6 NAT | `CONFIG_IP6_NF_NAT=y`, `CONFIG_IP6_NF_TARGET_MASQUERADE=y` |
+
+**Why built-in (`=y`) rather than module (`=m`)**: BIC / WESTWOOD / HTCP default to `m`
+in the mainline Kconfig. Built as modules they produce `tcp_bic.ko` and friends, which
+GKI's `module_outs` does not declare — bazel fails outright. This stage therefore rewrites
+any existing `=m` to `=y`.
+
+**How to enable**
+
+| Entry point | Parameter |
+|---|---|
+| Actions | `use_net_enhance` (**off** by default) |
+| Local CLI | `--net-enhance` |
+
+> You still need a userspace `ipset` tool: the kernel provides the capability only.
+> `CONFIG_IP_SET_MAX=65534` sits inside the kernel Kconfig range (2–65534), so no source
+> change is required.
+
 > **Why built-in:** Re-Kernel depends on internal symbols such as `kallsyms_lookup_name`, which
 > GKI hides from **external modules**. In-tree compilation can see them, so this repo builds it in
 > rather than shipping an LKM.
@@ -89,7 +122,7 @@ kernel** (not as an external module), controlled by `CONFIG_REKERNEL`:
 The build fetches `setup.sh` from upstream and runs it, then verifies the `fs/nomount` symlink is
 in place before appending `CONFIG_NOMOUNT=y` to the defconfig.
 
-This phase (`integrate_nomount`) is #25 of the 46 build phases, and its **position is a hard
+This phase (`integrate_nomount`) is #25 of the 47 build phases, and its **position is a hard
 constraint**:
 
 - it must run **after** `gen_susfs_patch` — otherwise its changes leak into the exported `susfs.patch`

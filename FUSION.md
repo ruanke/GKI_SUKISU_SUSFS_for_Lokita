@@ -11,24 +11,24 @@
 | 仓库 | 文件数 | 最后提交 | 判定 |
 |---|---|---|---|
 | **zzh20188/GKI_KernelSU_SUSFS** | 130 | 2026-09-16 | 主干，功能最全 → **选为主项目** |
-| coolzyd9107/GKI_SukiSU_Ultra_SUSFS | 120 | 2026-06-28 | zzh 的过期副本 |
+| coolzyd9107/GKI_SukiSU_Ultra_SUSFS | 120 | 2026-06-28 | zzh20188 的过期副本 |
 | ShirkNeko/GKI_KernelSU_SUSFS | 43 | 2026-08-27 | 另一套架构（Python 构建系统），有独有功能 |
 
 ### coolzyd：无独有内容，直接丢弃
 
 ```
 coolzyd 独有文件：0 个
-zzh 独有文件：12 个（含 security_patch/ 整个 CVE 修复目录）
+zzh20188 独有文件：12 个（含 security_patch/ 整个 CVE 修复目录）
 ```
 
 两者同名文件仅有内容差异，且 coolzyd 落后约 2.5 个月。唯一的差异点
-`web/js/config.js` 里的 `deprecatedCutoff` 字段，zzh 已迁移到 `data/*.json`
+`web/js/config.js` 里的 `deprecatedCutoff` 字段，zzh20188 已迁移到 `data/*.json`
 的 `deprecated_cutoff` —— 属于更新写法，不是缺失。**没有任何需要合并的内容。**
 
 ### ShirkNeko：另一套架构，有 4 项独有能力
 
 ShirkNeko 用 Python 模块化脚本（`kernel_builder.py` 763 行）替代了 YAML 工作流。
-值得注意的是，它的 OnePlus 8E 补丁直接引用 zzh 的仓库：
+值得注意的是，它的 OnePlus 8E 补丁直接引用 zzh20188 的仓库：
 
 ```python
 OP8E_PATCH_URL = "https://github.com/zzh20188/GKI_KernelSU_SUSFS/raw/refs/heads/dev/hmbird_patch.c"
@@ -40,14 +40,14 @@ OP8E_PATCH_URL = "https://github.com/zzh20188/GKI_KernelSU_SUSFS/raw/refs/heads/
 
 ## 二、融合策略：抽取公共脚本，双入口共用
 
-zzh 的构建逻辑原本以 53 个 step 的形式内嵌在 `build.yml`（1583 行）里，只能跑在
-GitHub Actions 上。ShirkNeko 的 Python 版能本地跑，但功能比 zzh 少一大截
+zzh20188 的构建逻辑原本以 53 个 step 的形式内嵌在 `build.yml`（1583 行）里，只能跑在
+GitHub Actions 上。ShirkNeko 的 Python 版能本地跑，但功能比 zzh20188 少一大截
 （无 CVE 补丁、Droidspaces、ReKernel、6.12、5 种 KSU 变体）。
 
 **直接搬运任何一边都是错的**，因此采用第三条路：
 
 ```
-scripts/build_kernel.sh        ← 单一真相源（完整功能，45 个阶段）
+scripts/build_kernel.sh        ← 单一真相源（完整功能，47 个阶段）
         ├─ .github/workflows/build.yml 调用它 → Actions 构建
         └─ build.py 调用它                   → 本地构建
 ```
@@ -81,7 +81,7 @@ scripts/build_kernel.sh        ← 单一真相源（完整功能，45 个阶段
 2. **去掉第三方依赖** —— 原实现的 `import multipart` 包名有误且非标准库，
    改用标准库手写 multipart 上传。
 3. **参数统一** —— 通知内容改为从与 `build_kernel.sh` 相同的环境变量读取，
-   并补充了 zzh 特有开关（BBR / BBG / ReKernel / Droidspaces / CVE 补丁）的展示。
+   并补充了 zzh20188 特有开关（BBR / BBG / ReKernel / Droidspaces / CVE 补丁）的展示。
 
 ---
 
@@ -154,7 +154,7 @@ run_cleanup_disk() {
 
 因此以下方面是**静态推导等价**，尚未经过真实构建验证：
 
-- 45 个阶段在独立 shell 进程中串接后，个别依赖子 shell 行为的语句
+- 47 个阶段在独立 shell 进程中串接后，个别依赖子 shell 行为的语句
 - `compile_kernel` 的重试包装（原为 `nick-fields/retry@v4` action）
 - 各补丁步骤在真实源码上的实际效果
 
@@ -170,3 +170,56 @@ run_cleanup_disk() {
 
 `tools/migration/` 里的脚本只用于追溯本次迁移是如何从原 1583 行 YAML 提取出
 shell 逻辑的，日常维护不需要再运行它。
+
+---
+
+## LingLuo17/AnyKernel3 移植记录
+
+> **前提澄清**：`LingLuo17/AnyKernel3` 虽然叫这个名字，但**不是 AnyKernel3 刷机包
+> 模板**，而是另一套完整的 GKI 构建工程（dev 分支 `ba3c27c`，结构与本仓库高度相似）。
+> 本仓库真正使用的 AnyKernel3 刷机包来自 `WildKernels/AnyKernel3`
+> （`scripts/build_kernel.sh` 的 `clone_deps` 阶段），那条链路不受本次移植影响。
+
+本仓库的上游移植分支即该工程的移植分支，已合并进 `main`。
+
+### 已移植
+
+- 6.10+ 的 `security_add_hooks` 新签名兼容补丁（`const struct lsm_id *`）；
+- 严格补丁校验与 6.12 的 `show_smap` 修复（本仓库 `susfs_fixes/apply.sh` 442 行，
+  比上游 zzh20188 的 328 行更完整）；
+- NoMount 挂载元模块、网络增强等（与上游 zzh20188 同代，非 LingLuo 独有）。
+
+### 确定遗漏（合并上游移植分支时漏掉）
+
+1. **6.12 的 ZRAM 补丁资源**：上游 `SukiSU_patch` 的 `other/zram/zram_patch/` 只有
+   `5.10 / 5.15 / 6.1 / 6.6` 四个目录，没有 6.12。LingLuo 为此补了 6.12 补丁
+   （commit `94fd545`、`ba3c27c`），本仓库未引入。
+   → 后果：6.12 入口的 `use_zram` 默认 `true` 却恒不生效（已改为默认 `false` 并在
+   描述里注明，属于"让开关说真话"的止血，不是恢复功能）。
+2. **6.12 的 KPM**：脚本在内核 ≥ 6.10 时强制 `KPM_SUPPORTED=0`，与 LingLuo 无关，
+   属上游限制。6.12 入口的 `use_kpm` 默认已改为 `disabled (关闭)`。
+3. **UAPI 同步**（`scripts/ksu_uapi_sync/builtin-uapi4.patch` 及对齐逻辑）未移植。
+
+### 强烈建议不要移植的一项
+
+**`scripts/ksu_post_setup.sh`（51 行）——品牌署名篡改脚本。**
+
+把脚本里的 base64 常量解出来，实际行为是：
+
+```
+UkVQT19OQU1FIDo9IFJlU3VraVNV  →  REPO_NAME := ReSukiSU
+QCQoY2FsbCBnaXRfYnJhbmNoKQ==  →  @$(call git_branch)
+TGluZ0x1bw==                  →  LingLuo
+```
+
+即：把 `KernelSU/kernel/Kbuild` 里的 `REPO_NAME := ReSukiSU` 改成
+`REPO_NAME := LingLuo`，把版本字符串里的 `@$(call git_branch)` 改成 `@LingLuo`，
+然后用 `git update-index --skip-worktree` 把这次改动从 git 状态里藏起来
+（`git status` / `git diff` 都看不到）。
+
+这等于把上游 KernelSU 变体的品牌标识替换成自己的，并让替换行为不可见，与本仓库
+`NOTICE` / `THIRD_PARTY_NOTICES.md` 的归属声明要求**直接冲突**——GPL-2.0 要求保留
+原作者署名，本仓库自己的许可证文件也写明"构建期拉取的各组件保留其原有许可，不因
+被本仓库引用而改变"。
+
+**不要移植这一项。** 记录在此，避免日后有人又把它捡回来。

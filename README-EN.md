@@ -2,386 +2,475 @@
 
 # GKI KernelSU SUSFS
 
----
-
-> [!WARNING]
-> **⚠️ Personal derivative · Not an official release · AI-assisted rework · Do not disturb upstream**
->
-> - This repository is a **personal derivative (fork)** of [zzh20188/GKI_KernelSU_SUSFS](https://github.com/zzh20188/GKI_KernelSU_SUSFS). The vast majority of the core work — build matrix, scripts, patch adaptation — **was done by the upstream author**; this repo only integrates it for personal use. All credit belongs upstream.
-> - Workflows, build scripts and docs here were **modified with AI assistance** and have **not been reviewed, endorsed or contributed to by any upstream author**; behaviour may differ from upstream. The upstream authors take no responsibility for anything in this repository.
-> - Builds are for the owner's own testing and are **not an official distribution channel**; for official releases go to [zzh's original repo](https://github.com/zzh20188/GKI_KernelSU_SUSFS/releases).
-> - Flashing third-party kernels risks bricking, data loss and app integrity-check failures. Back up your stock boot image and proceed at your own risk.
-> - The docs site (GitHub Pages) uses [GoatCounter](https://www.goatcounter.com/) for anonymous visit stats, hosted at `zzh20188.goatcounter.com`; it collects no personally identifiable information. Disable JavaScript or block `gc.zgo.at` to opt out.
-> - Please report issues **here** and never contact the upstream authors about them (no issues, emails or Coolapk DMs).
-
----
-
-**Automated GKI Kernel Builds | KernelSU + SUSFS Integrated**
-
-This repository is **based on [zzh20188's GKI scaffolding](https://github.com/zzh20188/GKI_KernelSU_SUSFS)** (a fork
-with AI-assisted rework): using it as the main body, it ports [ShirkNeko](https://github.com/ShirkNeko/GKI_KernelSU_SUSFS)'s
-KPM image patching and local-CLI design, and takes inspiration from
-[coolzyd](https://github.com/coolzyd9107/GKI_SukiSU_Ultra_SUSFS)'s Release presentation style.
-The build pipeline is converged into a single
-[`scripts/build_kernel.sh`](scripts/build_kernel.sh): GitHub Actions and the local
-`build.py` share that same 45-phase script, so there is no second implementation to drift.
-
-Covers Android 12 / 13 / 14 / 15 / 16 (kernels 5.10 / 5.15 / 6.1 / 6.6 / 6.12).
-Every build produces an AnyKernel3 flashable zip, boot images in three compression
-formats, the KernelSU manager and the companion SUSFS module.
+**Automated GKI kernel builds · KernelSU + SUSFS integrated**
 
 [![Release](https://img.shields.io/github/v/release/Lokitla/GKI_SUKISU_SUSFS_for_Lokita?label=Release&style=flat-square&logo=github&logoColor=white&color=2ea44f)](https://github.com/Lokitla/GKI_SUKISU_SUSFS_for_Lokita/releases)
-[![Upstream Author](https://img.shields.io/badge/%E2%9D%A4%EF%B8%8F%20Upstream%20Author-zzh20188%40Coolapk-3DDC84?style=flat-square&logo=android&logoColor=white)](http://www.coolapk.com/u/11253396)
+[![Upstream author](https://img.shields.io/badge/%E2%9D%A4%EF%B8%8F%20Upstream%20author-zzh20188-3DDC84?style=flat-square&logo=android&logoColor=white)](https://github.com/zzh20188)
 [![KernelSU](https://img.shields.io/badge/KernelSU-Supported-5AA300?style=flat-square)](https://kernelsu.org/)
 [![SUSFS](https://img.shields.io/badge/SUSFS-Integrated-E67E22?style=flat-square)](https://gitlab.com/simonpunk/susfs4ksu)
 
-> 🙏 The Coolapk link above is **the personal Coolapk page of zzh20188, the original upstream
-> author** — it is placed here solely as a token of respect and gratitude.
-> **It is not affiliated with this repository in any way**; please do not contact the author
-> about anything related to this repo (no issues, DMs or comments).
-
-English | [**简体中文**](README.md)
-
----
+English | [简体中文](README.md)
 
 </div>
 
-## 🚀 Quick Navigation
+---
 
-- 📖 [Documentation](docs/advanced-features-en.md)
-- 📥 [Downloads](https://github.com/Lokitla/GKI_SUKISU_SUSFS_for_Lokita/releases)
-- 🔰 [Tutorial](https://lokitla.github.io/GKI_SUKISU_SUSFS_for_Lokita/guide.html)
-- 📊 [Version lookup](https://lokitla.github.io/GKI_SUKISU_SUSFS_for_Lokita/)
-- 📄 [Upstream sources & licences](NOTICE)
+## ⚠️ Read this first: personal-use notice
+
+> [!WARNING]
+> **This is a personal derivative repository, not an official release channel.
+> Please do not contact the upstream authors about it.**
+
+| Item | Details |
+|---|---|
+| **Nature** | A **personal-use derivative fork** of [zzh20188/GKI_KernelSU_SUSFS](https://github.com/zzh20188/GKI_KernelSU_SUSFS) |
+| **Credit** | The build matrix, scripts and patch adaptation — **the vast majority of the core work was done by the upstream authors**. This repository only integrates them for personal use; all credit belongs upstream |
+| **Development** | Workflows, build scripts and docs were modified **with AI assistance**, **without review, approval or involvement from any upstream author**, so behavior may differ from upstream |
+| **Artifacts** | **For the maintainer's own testing only**. For official builds go to [zzh20188's repository](https://github.com/zzh20188/GKI_KernelSU_SUSFS/releases) |
+| **Liability** | Upstream authors bear **no responsibility** for the content, quality or consequences of this repository |
+| **Feedback** | Open an issue **in this repository**. **Do not contact upstream authors** in any way (issues, email, Coolapk DMs, etc.) |
+
+**Flash at your own risk**: flashing a third-party kernel can brick your device, cause data loss, or trigger app risk detection. Always back up your stock boot image.
+
+**Privacy**: the docs site (GitHub Pages) uses [GoatCounter](https://www.goatcounter.com/) for anonymous visit statistics and collects no personally identifiable information. Disable JavaScript or block `gc.zgo.at` to opt out.
 
 ---
 
-## ✨ Features
+## What this is
 
-| Capability | Description | Default |
+Built on [zzh20188](https://github.com/zzh20188)'s GKI build scaffolding, with
+[ShirkNeko](https://github.com/ShirkNeko/GKI_KernelSU_SUSFS)'s KPM image patching and
+local CLI design ported in, [coolzyd9107](https://github.com/coolzyd9107/GKI_SukiSU_Ultra_SUSFS)'s
+release presentation as reference, and [LingLuo17](https://github.com/LingLuo17)'s
+6.12 ZRAM patches, SukiSU compat patches, and network enhancement merged in, with the whole build flow converged into **one script**:
+
+```
+GitHub Actions  ──┐
+                  ├──►  scripts/build_kernel.sh  (47 stages, single source of build logic)
+local build.py  ──┘
+```
+
+**There is no logic fork between the two paths.** To change build behavior, edit
+`scripts/build_kernel.sh` — never rewrite shell inside `build.yml`.
+
+Covers Android 12 / 13 / 14 / 15 / 16 (kernels 5.10 / 5.15 / 6.1 / 6.6 / 6.12).
+Each build produces an AnyKernel3 flashable zip, boot images in three compression
+formats, the KernelSU manager and the SUSFS companion module.
+
+---
+
+## Quick links
+
+| | |
+|---|---|
+| 📖 Advanced features | [docs/advanced-features-en.md](docs/advanced-features-en.md) |
+| 💻 Local CLI build | [docs/local-build-en.md](docs/local-build-en.md) |
+| 📥 Downloads | [Releases](https://github.com/Lokitla/GKI_SUKISU_SUSFS_for_Lokita/releases) |
+| 🔰 Beginner guide | [GitHub Pages](https://lokitla.github.io/GKI_SUKISU_SUSFS_for_Lokita/guide.html) |
+| 📊 Version lookup | [GitHub Pages](https://lokitla.github.io/GKI_SUKISU_SUSFS_for_Lokita/) |
+| 📄 Sources & license | [NOTICE](NOTICE) · [FUSION.md](FUSION.md) |
+
+---
+
+## Build entry points and version matrix
+
+### Entry points
+
+| Entry | How much it builds |
+|---|---|
+| **Build kernels** (`main.yml`) | Expands the matrix, one job per Android 12–16 |
+| **Kernel build - Android 12/13/14/15/16** (`kernel-a1*.yml`) | All sublevels of that kernel (**full** mode) |
+| **Android kernel build - custom** (`kernel-custom.yml`) | Only the version you specify, **1 by default** |
+
+### Three matrices (all figures verified)
+
+| Matrix | 5.10 | 5.15 | 6.1 | 6.6 | 6.12 | Total | Used by |
+|---|---|---|---|---|---|---|---|
+| **auto** (slim) | 5 | 6 | 5 | 3 | — | **19** | Auto trigger; single-version entries called by `main.yml` |
+| **full** | 22 | 20 | 23 | 15 | 4 | **84** | Manually triggered single-version entries |
+| **data set** | 36 | 35 | 32 | 16 | 8 | **127** | "All available versions" in `data/`; source of `build.py --all` |
+
+> **6.12 is not in the auto matrix**, so neither the auto trigger nor "Build kernels"
+> includes it (ticking `include_612` won't help). For 6.12, **manually trigger
+> "Kernel build - Android 16 (6.12)"** (full mode: 6.12.23 / 30 / 38 / 58).
+
+### "Build target" syntax for the custom entry
+
+| Input | Effect |
+|---|---|
+| `66` | Sublevel code → 5.10.66 |
+| `236` | Sublevel code → 5.10.236 |
+| `2022-01` | Patch level date → 5.10.66 |
+| `lts` | LTS version |
+| `all` | Every version of that kernel (**very slow**) |
+| `66,236` | Comma separated, multiple at once (duplicates removed) |
+
+When build scope is "all versions" or "LTS only", the build target is ignored.
+
+---
+
+## Features and switches
+
+| Feature | Description | Default |
 |---|---|---|
-| KernelSU variant | `SukiSU` / `SukiSU(40726)` / `SukiSU(40548)` / `ReSukiSU` / `Official` | `SukiSU` |
-| SUSFS | SUSFS patch set with inline hook support | On |
-| KPM | Patch `Image` after compilation so KPM modules can load (unsupported on 6.6) | `patched` (on + patched) |
-| Hook type | SUSFS Inline Hooks — hand-written syscall interception at compile time, no kprobe traces | — |
-| Magic Mount | SukiSU default mount mode | On |
-| ZRAM / LZ4KD | Enhanced ZRAM algorithm | **On** |
-| BBR | Set as the default congestion algorithm | Off |
-| BBG | Baseband-guard anti-wipe protection | Off |
-| Re-Kernel | Re-Kernel driver | Off |
-| NoMount | Mount metamodule: integrates [maxsteeel/NoMount](https://github.com/maxsteeel/nomount) at the `fs/` layer. It takes a different path from SUSFS sus_mount and coexists with any KSU variant; flash the matching NoMount module yourself | Off |
+| KernelSU variant | `SukiSU` / `SukiSU(40726)` / `SukiSU(40548)` / `ReSukiSU` / `Official` / `Next` | **`ReSukiSU`** |
+| SUSFS | SUSFS patch set with Inline Hook support | On |
+| KPM | Patch `Image` after build to load KPM modules | `patched` ※ |
+| ZRAM / LZ4KD | ZRAM enhancement (LZ4KD / LZ4K_OPLUS) | On |
+| BBR | Set BBR as the default TCP congestion algorithm | Off |
+| **Network enhancement** | IPSet (all types) + BBR + FQ/FQ_CODEL + IPv6 NAT + extra congestion algorithms | Off |
+| BBG | Baseband-guard anti-wipe | Off |
+| Re-Kernel | Re-Kernel driver (beta) | Off |
+| NoMount | Mount meta-module, integrates [maxsteeel/nomount](https://github.com/maxsteeel/nomount) at the `fs/` layer | Off |
 | Droidspaces | LXC-style container support (experimental) | Disabled |
-| NTSync | Requires Droidspaces | Off |
-| CVE-2026-43499 | rtmutex fix chain | Off |
+| NTSync | Requires Droidspaces first | Off |
+| CVE-2026-43499 | rtmutex fix chain (GhostLock) | Off |
 | OnePlus 8E support | Do not enable on non-OnePlus devices | Off |
-| Spoofed manager | Also fetch the manager APK disguised as the official package name | On |
-| Telegram notification | Push a notification when the build finishes | On |
-| Custom build time | Pin the kernel `UTS_VERSION` timestamp | Empty |
+| Spoofed manager | Also fetch the manager APK with a spoofed package name | On |
+| Telegram notify | Push a notification after the build | On |
 
-> Apart from SukiSU, SUSFS, KPM, the spoofed manager and Telegram notifications, every
-> other toggle defaults to off, matching the defaults of ShirkNeko's **original repository**.
+
+
+### Switch availability matrix (does this entry actually pass the switch?)
+
+This table exists to prevent "it looks supported but is permanently off" mistakes.
+
+| Switch | Build kernels `main.yml` | Single-version `kernel-a1*.yml` | Custom `kernel-custom.yml` | Personal `build-236-marble.yml` | Local `build.py` |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `use_zram` | ✅ | ✅ (no-op on 6.12) | ✅ | ✅ | `--zram` |
+| `use_net_enhance` | ✅ | ✅ | ✅ | ✅ | `--net-enhance` |
+| `use_bbg` | ✅ | ✅ | ✅ | ✅ | `--bbg` |
+| `use_kpm` | ✅ | ✅ (no-op on 6.12) | ✅ | ✅ | `--kpm` |
+| `use_rekernel` | ✅ | ✅ | ✅ | ✅ | `--rekernel` |
+| `use_nomount` | ✅ | ✅ | ✅ | ✅ | `--nomount` |
+| `skip_incompatible` | ❌ always false | ✅ | ❌ | ✅ | `--skip-incompatible` |
+| `export_susfs_patches` | ✅ | ➖ main entry only | ❌ | ✅ | `--export-susfs-patches` |
+| `ksu_branch_mode` | ❌ always `auto` | ✅ | ❌ | ❌ | `--ksu-branch-mode` |
+| `manager_commit` (manager + SUSFS commit, comma-separated) | ✅ | ✅ | ✅ | ✅ | `--sukisu-commit` / `--susfs-commit` |
+| `kpm_patch_sha256` | ➖ hidden, always empty | ➖ same | ➖ same | ➖ same | `--kpm-patch-sha256` |
+| `manager_spoofed` (spoofed manager) | ➖ hidden, always on | ➖ same | ➖ same | ➖ same | not available |
+| `supp_op` (OnePlus 8E) | ❌ always false | ✅ | ✅ | ➖ hardcoded false | `--op8e` |
+| `ksu_mode` | ❌ | ❌ | ❌ | ❌ | not available |
+
+Legend:
+
+- **✅ = user-controllable when this entry is run manually** (the input exists in that
+  file's `workflow_dispatch` block).
+- **❌ = not offered by this entry**; a fixed default is used (written out in the code
+  with a note explaining why). The main cause is `main.yml`'s `workflow_dispatch` inputs
+  **hitting GitHub's 25-input limit**. Use the **single-version entry `kernel-*.yml`**
+  or **local `build.py`** instead.
+- **➖ = special cases**:
+  - *main entry only* — the input exists only in `kernel-a1*.yml`'s `workflow_call`
+    block (for `main.yml` to pass in), **not in `workflow_dispatch`**, so it is always
+    `false` when you run the single-version entry by hand; only "Build kernels" can
+    actually set it.
+  - *hidden* — the option has been removed from every manual entry's UI with a fixed
+    behaviour: `kpm_patch_sha256` behaves as left blank (no verification),
+    `manager_spoofed` is always enabled. The underlying capability still lives in
+    `build_kernel.sh` / local `build.py`.
+
+**On commit hashes**: `sukisu_commit` and `susfs_commit` are merged into a single
+input `manager_commit`, holding "SukiSU/manager hash, **optionally followed by a
+comma and** the SUSFS hash". Parsing splits on the comma and strips surrounding
+whitespace; the validation for each hash is unchanged. With a single value the second
+hash is left empty (SUSFS unpinned).
+
+**On `use_bbr`**: all Actions entries now use `use_net_enhance` only — network
+enhancement already includes "set BBR as the default congestion algorithm", so two
+switches would only create ambiguity. Only the local `build.py` keeps a separate
+`--bbr`.
+
+**Two switches are permanently ineffective on 6.12 (Android 16)** — an upstream
+limitation, not a configuration problem:
+
+- `use_zram`: upstream `SukiSU_patch`'s `other/zram/zram_patch/` ships only
+  5.10 / 5.15 / 6.1 / 6.6, with no 6.12 directory, so those stages are skipped whole;
+- `use_kpm`: the script forces `KPM_SUPPORTED=0` on kernel ≥ 6.10 (SukiSU's KPM code
+  uses `netlink_kernel_cfg.cb_mutex`, removed in newer kernels).
+
+`kernel-a16-6-12.yml` now defaults both to off so they no longer spin idly.
+
+> Every cell is measured against one criterion — whether the input appears in that file's
+> `workflow_dispatch` block — not inferred from the call chain. The two disagree easily:
+> an input present only in `workflow_call` is visible along the call chain yet unreachable
+> for the user.
+
+### Three common pitfalls
+
+**1. KPM does nothing on the default variant.** KPM is only provided by the SukiSU
+variant; `ReSukiSU` / `Official` / `Next` have no `config KPM` in their kernel Kconfig.
+The relevant stages are skipped automatically — the build does not fail, but the kernel
+cannot load KPM modules. Switch the variant back to `SukiSU` if you need KPM.
+
+**2. BBR needs its gate enabled first.** The `gki_defconfig` baselines of
+5.10 / 5.15 / 6.1 / 6.12 have no `CONFIG_TCP_CONG_ADVANCED`, while `TCP_CONG_BBR` and
+`DEFAULT_BBR` both sit inside `if TCP_CONG_ADVANCED` — with the gate closed, the two BBR
+lines are dead entries nobody reads. The script writes `TCP_CONG_ADVANCED=y` first, and
+also forces `TCP_CONG_BIC / WESTWOOD / HTCP` to `=y` (they default to `m` in Kconfig;
+`=y` avoids emitting undeclared `.ko` files on the bazel path).
+
+**3. ZRAM defaults have three layers.** The script's internal fallback is `false`
+(only when nobody passes anything); the local CLI and **all** Actions entries default to
+`true`. On 6.12 there is no lz4k patch stack, so it is skipped entirely with a warning
+even when enabled.
 
 ---
 
-## 📦 Build artifacts
+## Build artifacts
 
-In `上传全部` (upload everything) mode, each kernel version is split into two artifacts:
+With "upload all", each kernel version is split into two artifacts:
 
 | Artifact | Contents | Size (5.10 example) |
 |---|---|---|
 | `..._kernel-<version>-AnyKernel3` | `AnyKernel3.zip` flashable package | ~18 MB |
 | `..._kernel-<version>-Images` | `boot.img` / `boot-gz.img` / `boot-lz4.img` | ~50 MB (compressed) |
 
-**Flashing only needs the AnyKernel3 package** — its `Image` is handled on-device by `anykernel.sh`.
+**You only need the AnyKernel3 package** — the `Image` inside is processed on-device by
+`anykernel.sh`.
 
-> Artifact upload mode (`ARTIFACT_UPLOAD_MODE`): besides `上传全部` (upload everything), you can pick `仅 AnyKernel3` (AnyKernel3 only) —
-> it uploads just the flashable zip and skips the three boot images, which saves Release space when only the flashable package is needed.
-> (`main.yml` defaults to upload-everything for the full matrix; `kernel-custom.yml` defaults to AnyKernel3 only.)
+The three boot images differ in how the kernel is compressed, for `fastboot flash boot`:
 
-The three boot images differ only in how the kernel payload is compressed; they are meant
-for `fastboot flash boot`:
-
-| File | Kernel compression | Use when |
+| File | Compression | Use case |
 |---|---|---|
-| `boot.img` | uncompressed | Widest compatibility, older bootloaders |
-| `boot-gz.img` | gzip | Traditional default, supported by nearly all bootloaders |
+| `boot.img` | none | Best compatibility, old bootloaders |
+| `boot-gz.img` | gzip | Traditional default, supported almost everywhere |
 | `boot-lz4.img` | lz4 | Common on modern GKI, fastest decompression |
 
-Try `boot-lz4.img` first on modern devices; if it hangs on the first screen, switch to
-`-gz`; if that still fails, use the uncompressed `boot.img`.
+Prefer `boot-lz4.img` on modern devices; try `-gz` if it hangs on the first screen; fall
+back to uncompressed.
+
+An "AnyKernel3 only" mode is also available to save release space.
 
 ---
 
-## ⚠️ Compatibility Notice
+## Compatibility notes
 
-> **Note:** OnePlus ColorOS 14/15 is currently not supported. A data wipe may be required after flashing.
+- **OnePlus ColorOS 14 / 15**: not supported; you may need to wipe data to boot.
+- **6.12 (Android 16)**: compatibility patches for the new 6.10+ `security_add_hooks`
+  signature are in place, but there are three hurdles — see below.
+- **Older SukiSU**: builds for `SukiSU(40726)` / `SukiSU(40548)` are kept. They use
+  entirely old code with none of the recent features or fixes; pair them with a matching
+  manager version.
+- **Re-Kernel**: supported, currently beta.
 
-> **rekernel feature (beta): rekernel feature is now supported (currently in beta)**
+### The three 6.12 hurdles
 
+**1 · `security_add_hooks` signature change.** The third parameter became
+`const struct lsm_id *` in v6.10+, while KernelSU variants still pass a string per the
+old signature. The patch stage fills in an argument macro based on kernel version:
+**`&ksu_lsm_id` from v6.10 onward, a string literal on older kernels.**
+(The field is `name`, not `lsm` — writing `.lsm` fails to compile.)
 
----
+**2 · KPM does not compile.** SukiSU's `super_access.c` uses
+`netlink_kernel_cfg.cb_mutex`, which no longer exists on 6.10+. The script **turns KPM
+off automatically** instead of running a build that is doomed to fail (an early gate sets
+`KPM_SUPPORTED=0`). Measured cost of forcing it: failure after 18 minutes, then a
+retry-based fallback — about 20 extra minutes per version.
 
-## 📚 Documentation & Guides
-
-This repo keeps its documentation in [`docs/`](docs/), reviewed and updated together with the code:
-
-| Document | Contents |
-|---|---|
-| 🧩 [**Advanced features**](docs/advanced-features-en.md) | GhostLock fixes, Droidspaces containers, NoMount metamodule, Re-Kernel, custom commits, spoofing `/proc/config.gz` |
-| 💻 [**Local CLI build**](docs/local-build-en.md) | Full argument reference for building on your own machine, resuming, and debugging |
-
-- 🔰 [**Beginner tutorial**](https://lokitla.github.io/GKI_SUKISU_SUSFS_for_Lokita/guide.html): step-by-step Fork and custom build guide (GitHub Pages)
-- 📊 [**Kernel version lookup**](https://lokitla.github.io/GKI_SUKISU_SUSFS_for_Lokita/): security patch month → kernel sublevel, with copy-ready build parameters
-- 中文：[进阶功能](docs/advanced-features.md) / [本地构建](docs/local-build.md)
-
-> The upstream [zzh20188/GKI_KernelSU_SUSFS](https://github.com/zzh20188/GKI_KernelSU_SUSFS) Wiki
-> targets the original repo and does not cover this fork's additions (SukiSU variants, KPM image
-> patching, Release cache, NoMount, …). Use this repo's `docs/` as the source of truth.
-- 🧩 [**Advanced Features (in-repo doc)**](docs/advanced-features-en.md): GhostLock Security Fix, Droidspaces Container Support, Custom Commit Pinning, Spoofing `/proc/config.gz`
-
----
-
-## 🆕 Capabilities Added on Top of Upstream zzh
-
-On top of [zzh20188/GKI_KernelSU_SUSFS](https://github.com/zzh20188/GKI_KernelSU_SUSFS), this repository ports
-the following features from
-[ShirkNeko/GKI_KernelSU_SUSFS](https://github.com/ShirkNeko/GKI_KernelSU_SUSFS), with additional adaptation:
-
-| Capability | Description | How to enable |
-|---|---|---|
-| **Local CLI build** | Build without Actions, sharing the same script as CI | `python3 build.py ...` |
-| **BBR congestion control** | Set BBR as the default TCP congestion algorithm | Actions: `use_bbr`; CLI: `--bbr` |
-| **Telegram notification** | Push build results and checksums to Telegram | Actions: `send_telegram` |
-| **Release cache** | Store ccache in GitHub Releases, bypassing `actions/cache` size and expiry limits | Actions: `use_release_cache` |
-| **Spoofed manager toggle** | Choose whether to also fetch the SukiSU manager APK disguised as the official KernelSU package name | Actions: `manager_spoofed` |
-| **KPM image patching** | Patch `Image` after compilation so KPM modules can load (ported from ShirkNeko's `patch_kpm_image`); 5.x and 6.1, skipped on 6.6 | Actions: `use_kpm` → `enabled` / `patched` |
-| **Split manager artifacts** | The normal and Spoofed managers are uploaded as two separate artifacts instead of one combined archive | Always on |
-| **Standalone SUSFS switch** | The three-state "KernelSU / SUSFS mode" picker is now a simple "Integrate SUSFS" checkbox (plain GKI is no longer offered) | Actions: `enable_susfs` |
-
-Defaults below are aligned with the actual values in `build-kernels.yml` / `kernel-build.yml`
-on the **main branch of [ShirkNeko/GKI_KernelSU_SUSFS](https://github.com/ShirkNeko/GKI_KernelSU_SUSFS)**
-(note: not any private fork):
-
-| Option | This fork | ShirkNeko upstream |
-|---|---|---|
-| KernelSU variant | **`SukiSU`** | `Stable` (no variant picker) |
-| Integrate SUSFS | **On** | built in, no separate switch |
-| KPM | **`patched`** (enabled + image patching) | `true` |
-| ZRAM (LZ4KD) | **On** | `false` |
-| BBG security patch | **Off** | `false` |
-| CVE-2026-43499 fix | **Off** | not offered upstream (kept here as an option) |
-| BBR congestion control | Off | `false` |
-| OnePlus 8E support | Off | `false` |
-| Telegram notification | **On** | `true` (skipped when secrets are missing) |
-| Spoofed manager | **On** | `true` |
-| Release type (Build kernel) | **`Release`** | `make_release: true` |
-
-> **About releases:** upstream hard-coded the "create release" job to run only in `zzh20188/GKI_KernelSU_SUSFS`, so a fork could never publish one. That restriction has been removed here, and publishing is now the default: `Release type` in the **Build kernel** workflow defaults to `Release`. Pick `Actions` if you only want artifacts without creating a release.
-
-### Configuring Telegram notifications
-
-Add these under **Settings → Secrets and variables → Actions**:
-
-| Secret | Description |
-|---|---|
-| `TELEGRAM_BOT_TOKEN` | Bot token from [@BotFather](https://t.me/BotFather) |
-| `TELEGRAM_CHAT_ID` | Target chat ID |
-| `TELEGRAM_MESSAGE_THREAD_ID` | Topic ID (optional, forum groups only) |
-
-If they are not configured, notifications are skipped silently and never break a build.
+**3 · No ZRAM patch stack.** The lz4k stack only ships directories for
+5.10 / 5.15 / 6.1 / 6.6. **Even with the ZRAM switch on, 6.12 skips the whole thing**
+with a `::warning::`. This is deliberate — better to skip explicitly than to leave a
+half-applied ZRAM patch that breaks GKI defconfig validation.
 
 ---
 
-## 🔄 Automatic trigger on SukiSU updates
+## Upstream update auto trigger
 
-`.github/workflows/Auto_Trigger.yml` checks the latest commit on
-[SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) `main` every three days and
-compares it against the value recorded on this repository's `sha` branch:
+ReSukiSU and SukiSU ship from two unrelated upstream repositories with their own release
+cadences, so auto-triggering is split into **two independent workflows**:
 
-1. New commit found → write it back to the `sha` branch and trigger the **构建内核** workflow;
-2. No new commit → do nothing, no runner minutes burned;
-3. Commit SHA unavailable (API rate limit) → fail fast instead of building with an empty value.
+| Workflow | Upstream watched | Baseline branch | Variant built | Schedule (UTC) |
+|---|---|---|---|---|
+| `.github/workflows/Auto_Trigger_ReSukiSU.yml` | [ReSukiSU/ReSukiSU](https://github.com/ReSukiSU/ReSukiSU) `main` | `sha-resukisu` | `ReSukiSU` | every 3 days at 00:00 |
+| `.github/workflows/Auto_Trigger_SukiSU.yml` | [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) `main` | `sha-sukisu` | `SukiSU` | every 3 days at 12:00 |
 
-**By default the full matrix runs**: 5.10 + 5.15 + 6.1 + 6.6 —
-**22 + 20 + 23 + 15 = 80 kernel versions**, matching what upstream zzh publishes per Release.
-> Note: the above covers only the default-enabled 5.10–6.6 matrix; ticking `include_612` adds 6.12's 4 versions.
-> The `data/` directory holds **126** version definitions in total (5.10=36 / 5.15=35 / 6.1=32 / 6.6=16 / 6.12=7);
-> a local `build.py --all` builds from this full set.
-The build config is fixed at **KPM `patched` (on + patched) + ZRAM (LZ4KD) on**, with the other
-enhancements (BBG / Re-Kernel / BBR, etc.) off.
-Pick `单版本冒烟` for a quick run that builds just 5.10.66.
+The two are offset by 12 hours so they never contend for runner concurrency and so the two
+releases stay easy to tell apart. Both follow the same procedure: fetch the upstream head
+commit → compare against their own baseline branch → write it back and trigger a build per
+`build_scope`.
 
-**6.12 is excluded by default**: current SukiSU mainline does not compile on 6.12 —
-`security_add_hooks` takes a `const struct lsm_id *` on 6.12 while SukiSU still passes a
-string (`hook/lsm_hook.c:191`), and disabling KPM does not help either. This is an upstream
-issue; enable it again by ticking `include_612` once SukiSU fixes it or if you switch to the
-legacy variants (40726 / 40548) — no code change needed.
+1. New commit → write it back to the baseline branch and trigger **Build kernels**;
+2. No new commit → do nothing, no runner time consumed;
+3. Cannot fetch the commit (API rate limit) → fail immediately rather than build with an
+   empty value.
 
-Manual runs accept these inputs:
+Defaults to "all versions", expanding the **auto slim matrix of 19 kernel versions** via
+`main.yml`, with ZRAM on and all other enhancements off.
+
+> **Release tags are counted per variant.** `main.yml` now emits tags shaped like
+> `<SUSFS version>-r<N>-<variant>`, where `-rN` only increments *within* one variant.
+> Sharing a single `-rN` sequence would let the second release compute an already-existing
+> tag — `gh release create` would then fail and that run's artifacts would be silently lost.
+
+> **The ReSukiSU workflow fires a full matrix build the first time it runs**, because its
+> `sha-resukisu` baseline does not exist yet. To establish the baseline without building,
+> run it manually once with `build_scope` set to "no build".
+> The SukiSU workflow reuses the existing `sha-sukisu` branch, which already holds a
+> SukiSU-Ultra commit, so it will not misfire.
+
+Manual run options:
 
 | Input | Description | Default |
 |---|---|---|
-| `force` | Trigger even when no new commit was detected | false |
-| `build_scope` | `全部版本` (all) / `单版本冒烟` (single) / `不构建` (none) | `全部版本` |
-| `include_612` | Include the 4 Android 16 (6.12) versions too (incompatible with current SukiSU) | false |
+| `force` | Ignore "is there a new commit" and trigger anyway | No |
+| `build_scope` | `all versions` / `fixed 5.10.236` / `single version smoke` / `no build` | `all versions` |
+| `include_612` | Try to include 6.12. **Note: 6.12 is not in the auto matrix, so it is still skipped** | No |
 | `release_type` | `Release` / `Pre-Release` / `Actions` | `Release` |
 
-> `全部版本` dispatches `main.yml` with the full matrix; `单版本冒烟` dispatches
-> `kernel-custom.yml` and builds only 5.10.66.
+> "fixed 5.10.236" runs the personal workflow `build-236-marble.yml` (for the Redmi Note
+> 12 Turbo, codename marble). Its parameters are hardcoded; artifacts stay in Actions
+> artifacts and **no Release is created**.
 >
-> A full 80-version run takes a while (20 concurrent jobs → roughly 4 waves). That is normal.
-
 > Requires **Settings → Actions → Workflow permissions** to be `Read and write`,
-> otherwise the push back to the `sha` branch is rejected with a 403 for `github-actions[bot]`.
+> otherwise writing back to the sha branch is rejected with 403.
 
 ---
 
-## 🧩 Advanced Features
+## Local build (CLI)
 
-The four advanced topics below are all off by default. Enable them by picking an option
-when triggering a build, or by dropping the corresponding file into the repo:
-
-| Feature | What it does | How to enable |
-|---|---|---|
-| 🛡️ **GhostLock Security Fix** | Fixes `CVE-2026-43499` / `CVE-2026-53163` (rtmutex) | tick `cve_2026_43499_patch` |
-| 🧪 **Droidspaces Container Support** | Run a full Linux environment on Android (experimental) | pick a `droidspaces` slot |
-| 🔧 **Custom Commit Pinning** | Pin SUSFS / SukiSU to specific commits | edit `config/config` |
-| 🧪 **Spoof `/proc/config.gz`** | Make the built config match your stock kernel | drop in `config/stock_defconfig` |
-
-Full details: [**docs/advanced-features-en.md**](docs/advanced-features-en.md).
-
----
-
-## 🛠️ Post-Install Recommendations
-
-### 📦 Recommended Modules
-
-<table>
-<tr>
-<th>Module</th>
-<th>Repository</th>
-<th>Channel</th>
-</tr>
-<tr>
-<td><b>LSPosed-Irena</b></td>
-<td><a href="https://github.com/re-zero001/LSPosed-Irena">GitHub</a></td>
-<td><a href="https://t.me/lsposed_irena">Telegram</a></td>
-</tr>
-<tr>
-<td><b>Zygisk Next</b></td>
-<td><a href="https://github.com/Dr-TSNG/ZygiskNext">GitHub</a></td>
-<td rowspan="2"><a href="https://t.me/real5ec1cff">Telegram</a></td>
-</tr>
-<tr>
-<td><b>TrickyStore</b></td>
-<td><a href="https://github.com/5ec1cff/TrickyStore">GitHub</a></td>
-</tr>
-</table>
-
-### 🔧 Xposed Modules
-
-| Module | Description |
-|:---:|:---|
-| **FuseFixer** | [Unicode zero-width fix module](https://t.me/real5ec1cff/268) |
-
-### App
-
-| Name | Description |
-|:---:|:---|
-| **Scene** | [Official Site](https://omarea.com/#/) |
----
-
-<div align="center">
-
-**More content coming soon...**
-
-⭐ If this project helps you, please give it a Star!
-
-</div>
-
----
-
-## 💻 Local Build (CLI)
-
-Besides GitHub Actions, you can build directly on your machine. **Both share the same build
-logic** (`scripts/build_kernel.sh`), so local and cloud builds behave identically — there is no
-second implementation to drift apart.
+Build directly on your machine without GitHub Actions. **It shares the same script as the
+cloud**, so behavior is identical.
 
 ```bash
 # Build a single version
 python3 build.py --android android14 --kernel 6.1 --sub-level 124 --os-patch 2025-02
+
+# Common switches
+python3 build.py --android android12 --kernel 5.10 --sub-level 236 \
+                 --zram --net-enhance --nomount --rekernel
 ```
 
-For the full argument reference (46 build phases, resuming with `--from`, single-step reruns with
-`--only`, every feature switch), see 💻 [**Local CLI build docs**](docs/local-build-en.md).
+Supports all 47 stages, resume from a stage (`--from`) and re-run a single stage
+(`--only`). Full options: [docs/local-build-en.md](docs/local-build-en.md).
 
 ---
 
-## 🔗 Upstream sources & licences
+## Repository layout
 
-This repository is a **personal derivative** of its upstreams (a fork with AI-assisted rework);
-the core work comes from the upstream authors below. The full list lives in [NOTICE](NOTICE); the main sources are:
+| Path | Purpose |
+|---|---|
+| `scripts/build_kernel.sh` | **Single source of build logic**, 47 stages |
+| `build.py` | Local CLI entry; only parses args and calls the script above |
+| `.github/workflows/build.yml` | Reusable build workflow (cache / artifacts / logs / notify) |
+| `.github/workflows/main.yml` | "Build kernels" top-level entry, expands the matrix |
+| `.github/workflows/kernel-a1*.yml` | Per-Android-version standalone entries |
+| `.github/workflows/kernel-custom.yml` | Custom single-version entry |
+| `.github/workflows/build-236-marble.yml` | **Personal**: fixed build for Redmi Note 12 Turbo |
+| `.github/workflows/Auto_Trigger_ReSukiSU.yml` | Detects ReSukiSU upstream updates and triggers builds (ReSukiSU variant) |
+| `.github/workflows/Auto_Trigger_SukiSU.yml` | Detects SukiSU upstream updates and triggers builds (SukiSU variant) |
+| `.github/workflows/get-manager.yml` | Fetches manager APKs |
+| `.github/workflows/update-pages.yml` | Updates `data/` and deploys Pages |
+| `config/` | Config fragments, `config/config` commit pinning |
+| `data/` | Available kernel sublevels and patch levels (127 entries) |
+| `security_patch/` | CVE-2026-43499 fix chain |
+| `zram/` | ARM64 NEON accelerated LZ4 implementation |
+| `web/` | GitHub Pages site source |
+| `scripts/susfs_fixes/apply.sh` | SUSFS patch adaptation and conflict fixes |
+| `tools/migration/` | One-off migration scripts, **not part of the build** |
+| `FUSION.md` | Comparison and migration notes for the three upstream repos |
 
-| Project | Upstream contribution | Licence |
+---
+
+## License and attribution
+
+Full list in [NOTICE](NOTICE); migration comparison in [FUSION.md](FUSION.md). Main sources:
+
+| Project | Upstream contribution | License |
 |---|---|---|
-| [WildKernels/GKI_KernelSU_SUSFS](https://github.com/WildKernels/GKI_KernelSU_SUSFS) | Common root of both zzh and ShirkNeko | **GPL-3.0-or-later** (custom LICENSE header + full GPL-3.0 text; GitHub reports `Other`) |
-| [zzh20188/GKI_KernelSU_SUSFS](https://github.com/zzh20188/GKI_KernelSU_SUSFS) | **Build scaffolding and the bulk of the code** (matrix, scripts, patch adaptation) | GPL-2.0 |
-| [ShirkNeko/GKI_KernelSU_SUSFS](https://github.com/ShirkNeko/GKI_KernelSU_SUSFS) | KPM image patching, local CLI design | not declared |
+| [WildKernels/GKI_KernelSU_SUSFS](https://github.com/WildKernels/GKI_KernelSU_SUSFS) | Common original upstream of zzh20188 and ShirkNeko | GPL-3.0-or-later |
+| [zzh20188/GKI_KernelSU_SUSFS](https://github.com/zzh20188/GKI_KernelSU_SUSFS) | **Build scaffolding and most of the code** | GPL-2.0 |
+| [ShirkNeko/GKI_KernelSU_SUSFS](https://github.com/ShirkNeko/GKI_KernelSU_SUSFS) | KPM image patching, local CLI design | Not declared |
 | [coolzyd9107/GKI_SukiSU_Ultra_SUSFS](https://github.com/coolzyd9107/GKI_SukiSU_Ultra_SUSFS) | Release notes template | GPL-2.0 |
-| [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) | The KernelSU variant itself | GPL-3.0 |
+| [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) | The KernelSU variant itself | GPL-3.0 (`kernel/` dir is GPL-2.0) |
 | [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) | SUSFS patch set | GPL-3.0 |
-| [WildKernels/AnyKernel3](https://github.com/WildKernels/AnyKernel3) | Flashable package template | **BSD-3-Clause style** (osm0sis' AK3 script licence; bundled `magiskboot` / `magiskpolicy` are **GPL-3.0+**) |
+| [WildKernels/AnyKernel3](https://github.com/WildKernels/AnyKernel3) | Flashable zip template | BSD-3-Clause style (`magiskboot` / `magiskpolicy` inside are GPL-3.0+) |
 
-**This repository's own newly added code and docs are GPL-2.0-or-later**, so they can coexist
-with and be lawfully distributed alongside the in-repo GPL-3.0 components (SukiSU-Ultra, SUSFS,
-Droidspaces, etc.); the zzh20188 base is labelled GPL-2.0 and this repo distributes as a
-derivative under GPL-2.0-or-later.
+### Layered licensing
 
-[LICENSE](LICENSE) keeps the verbatim GNU GPL v2 terms (unmodified), with a header
-SPDX-License-Identifier declaring this repo distributes under GPL-2.0-or-later; attribution
-and compatibility notes all live in [NOTICE](NOTICE).
+| Layer | License |
+|---|---|
+| Upstream zzh20188 scaffolding | Inherits **GPL-2.0** |
+| Code and docs **added by this repository** | **GPL-2.0-or-later** |
+| Actual kernel artifacts | Effectively **GPL-2.0-only** (the kernel cannot upgrade to v3) |
+| Distribution as a whole | GPL-2.0-or-later, so it can legally coexist with the GPL-3.0 components it contains |
 
-If you are an upstream author and believe any attribution is wrong, please open an issue
-here and it will be corrected immediately.
+[LICENSE](LICENSE) keeps the GNU GPL v2 text verbatim; the file header declares the
+distribution terms via an SPDX identifier. Attribution and compatibility notes live in
+[NOTICE](NOTICE).
+
+### License rule when porting code
+
+Judge exactly one thing: **will the ported code end up in the kernel artifact?**
+
+- **Not in the artifact** (build scripts / workflows / defconfig entries) → no conflict.
+  This repository's GPL-2.0-or-later can be upgraded to v3, so it can legally carry
+  GPL-3.0 script code; just note the source and license in the file header.
+  `CONFIG_xxx=y` entries are switches for existing kernel features and are not
+  copyrightable.
+- **In the artifact** (kernel source patches, drivers compiled into the kernel) → must be
+  GPL-2.0 compatible. The kernel is GPL-2.0-only and cannot be upgraded to v3, so
+  GPL-3.0 code inside the kernel is a conflict.
+
+> Therefore: when porting from a GPL-3.0 upstream, scripts and configs are safe, but
+> **kernel patches must be reimplemented from a GPL-2.0 source** such as
+> SukiSU-Ultra's `kernel/` directory.
 
 ### GPL-2.0 vs GPL-3.0
 
-This repository touches both licences (the zzh base is GPL-2.0; SukiSU / SUSFS are GPL-3.0). The differences:
-
-| Aspect | GPL-2.0 | GPL-3.0 / GPL-3.0-or-later |
+| Dimension | GPL-2.0 | GPL-3.0 / or-later |
 |---|---|---|
-| Anti-Tivoization | no requirement | forbids signature/hardware locks — consumer devices must allow installing modified builds |
-| Patent grant | no explicit clause | contributors grant a patent licence; suing over patents terminates your licence |
-| Reinstatement after violation | terminated, no way back | first violation can be cured within 60 days |
-| Combination with AGPL | not allowed | AGPL-3.0 code may be combined |
-| Additional terms | not allowed | seven limited categories allowed |
-| Compatibility with the other | GPL-2.0-only code **cannot** be folded into a GPL-3.0 work | GPL-2.0-**or-later** code can be upgraded to GPL-3.0 |
+| Anti-tivoization | No requirement | Forbids locking down with signatures or hardware |
+| Patent grant | No explicit clause | Contributors grant a patent license automatically |
+| Reinstatement after violation | Terminates, no reinstatement | Cure within 60 days of first violation |
+| Combining with AGPL | Not allowed | Allowed |
+| Compatibility | GPL-2.0-**only** cannot be merged into a GPL-3.0 work | GPL-2.0-**or-later** can upgrade to GPL-3.0 |
 
-**Core obligations shared by both (copyleft):**
+**Shared core restrictions (copyleft)**: when distributing binaries you must also provide
+the complete corresponding source; derivative works must be distributed under the same
+license; copyright notices, the full license text and modification notes must be kept,
+and there is no warranty (AS IS).
 
-- When distributing binaries (the boot images and AnyKernel3 zips published here), the **complete corresponding source code** must be made available as well;
-- Derivative works must be released under the **same licence** — you cannot relicense to closed or more permissive terms;
-- Copyright notices, the licence text and modification notes must be kept, and everything is provided **AS IS** without warranty.
+> **On `-or-later`**: newly added code is GPL-2.0-or-later, meaning users may choose
+> GPL-2.0 or any later GPL version (e.g. GPL-3.0) for that portion — this is exactly why
+> it can coexist with GPL-3.0 components. Pure GPL-2.0-only code cannot be upgraded.
 
-**What this means here:** this repo is public, so all build scripts, patches and configs are inspectable, and the SukiSU / SUSFS / KernelSU sources are available from their own upstreams — the source-availability requirement is met. Anyone redistributing artifacts built here inherits the same obligations.
+**This repository meets the source-availability requirement**: it is public, all build
+scripts, patches and configs are readable, and upstream SukiSU / SUSFS / KernelSU sources
+are available from their own repositories. Anyone redistributing artifacts built here
+inherits the same obligations.
 
-> **On `-or-later`:** the parts newly added here use GPL-2.0-or-later, meaning users may take them under GPL-2.0 or any later GPL version (e.g. GPL-3.0). That is exactly why they can coexist with the GPL-3.0 components; code that is GPL-2.0-*only* cannot be upgraded this way.
+If you are an upstream author and believe any attribution is wrong, please open an issue
+in this repository and it will be corrected immediately.
 
 ---
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
-This repository exists entirely on the shoulders of the upstream authors — the build matrix, SUSFS
-adaptation, KPM patching and manager distribution are all their work, none of it was done by this
-repo's owner. All credit and respect belong to them:
+This repository stands entirely on the shoulders of the upstream authors — the build
+matrix, SUSFS adaptation, KPM patching and manager distribution: none of that hard work
+was done by this repository's maintainer. All credit and respect goes to them:
 
-- **[zzh20188](https://github.com/zzh20188)** ([Coolapk page](http://www.coolapk.com/u/11253396), as a token of respect) — the foundation of this repo; the bulk of the build matrix and scripts is his work;
-- **[ShirkNeko](https://github.com/ShirkNeko)** — KPM image patching and local-CLI design;
-- **[coolzyd](https://github.com/coolzyd9107)** — Release presentation style;
-- and all contributors to [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra), [susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu), [KernelSU](https://kernelsu.org/) and [AnyKernel3](https://github.com/WildKernels/AnyKernel3).
+- **[zzh20188](https://github.com/zzh20188)** — the scaffolding; most of the matrix and script work is his;
+- **[ShirkNeko](https://github.com/ShirkNeko)** — KPM image patching and local CLI design;
+- **[coolzyd9107](https://github.com/coolzyd9107)** — release presentation;
+- **[LingLuo17](https://github.com/LingLuo17)** — 6.12 ZRAM patches, SukiSU compat patches, and network enhancement;
+- and all contributors of [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra),
+  [susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu),
+  [KernelSU](https://kernelsu.org/) and
+  [AnyKernel3](https://github.com/WildKernels/AnyKernel3).
 
-What this repo's owner did (with AI assistance) was merely reassemble their results into a
-personally convenient shape.
+The maintainer of this repository (with AI assistance) merely assembled the above into
+something convenient for personal use.
 
-**For any issue with this repository, report it here — do not contact the upstream authors in any
-way.** They did not participate in this repo's modifications and should not be bothered by its problems.
+**For any problem with this repository, please report it here — do not contact the
+upstream authors in any way.** They did not participate in these modifications and should
+not be held accountable for them.
+
+---
+
+<div align="center">
+
+⭐ If this project helps you, please consider starring it!
+
+</div>

@@ -40,15 +40,19 @@ on:
           - SukiSU(40548)
           - ReSukiSU
           - Official
+          # Next 变体已在 build.py 与 kernel-custom.yml 支持（build.py:32 / kernel-custom.yml:27-32），
+          # 但 main.yml 手动入口未启用：其 workflow_dispatch 的 input 名额有限，
+          # 且默认 ReSukiSU 是发布通道，混入 Next（独立分支、无 config KPM）易误导用户。
+          # 需要 Next 请走「内核构建 - Android 1x (自定义)」入口或本地 build.py。
           #- Next
-        default: SukiSU
+        default: ReSukiSU
       enable_susfs:
         description: "集成 SUSFS"
         required: false
         type: boolean
         default: true
       use_kpm:
-        description: "KPM 模块支持（编译后修补 Image，6.6 内核不支持）"
+        description: "KPM 模块支持（编译后修补 Image。6.12 及以上不支持：SukiSU 的 KPM 代码用了新内核已移除的 netlink_kernel_cfg.cb_mutex；6.6 是支持的）"
         type: choice
         default: "patched (开启并修补)"
         options:
@@ -87,27 +91,20 @@ on:
         type: boolean
         default: true
 
+      # ==================== 构建目标 ====================
+      # 原先这里是 build_a12_5_10 ~ build_a16_6_12 五个布尔开关，占掉 5 个名额。
+      # workflow_dispatch 上限 25，为腾出名额给 supp_op / sukisu_commit /
+      # susfs_commit / use_net_enhance，合并成一个逗号分隔的字符串。
+      # 写法：a12 / a13 / a14 / a15 / a16，或 all（全部，含 6.12）。
+      # 例：a12,a15    只构建 5.10 与 6.6
+      #     all        全部五个（等价于旧的 build_all=true）
+      build_targets:
+        description: "构建目标，逗号分隔（a12/a13/a14/a15/a16）或 all"
+        type: string
+        default: "all"
+        required: false
+
       # ==================== 开关（默认关闭） ====================
-      build_a12_5_10:
-        description: "Android 12 - 5.10"
-        type: boolean
-        default: false
-      build_a13_5_15:
-        description: "Android 13 - 5.15"
-        type: boolean
-        default: false
-      build_a14_6_1:
-        description: "Android 14 - 6.1"
-        type: boolean
-        default: false
-      build_a15_6_6:
-        description: "Android 15 - 6.6"
-        type: boolean
-        default: false
-      build_a16_6_12:
-        description: "Android 16 - 6.12"
-        type: boolean
-        default: false
       use_zram:
         description: "启用 ZRAM 增强算法"
         type: boolean
@@ -129,8 +126,12 @@ on:
         type: boolean
         default: false
 
-      use_bbr:
-        description: "设置 BBR 为默认拥塞算法"
+      # 原 use_bbr 的input 名额改为 use_net_enhance：
+      # 网络增强本身就包含「把 BBR 设为默认拥塞算法」（build_kernel.sh 的
+      # stage_config_net_enhance 会写 CONFIG_DEFAULT_BBR=y），两个开关只会造成歧义。
+      # 这样既统一了语义，又没有额外占用 25 个名额里的位置。
+      use_net_enhance:
+        description: "启用网络增强（IPSet 全类型 + BBR + FQ/FQ_CODEL 队列 + IPv6 NAT + 附加拥塞算法）"
         required: false
         type: boolean
         default: false
@@ -139,15 +140,13 @@ on:
         required: false
         type: boolean
         default: true
-      manager_spoofed:
-        description: "一并拉取 Spoofed 管理器（伪装包名）"
+      # supp_op 恢复显示：原先因 25 input 上限被隐藏，名额让给了 use_nomount。
+      # 本次把 5 个 build_a1x 布尔开关合并为 build_targets 后腾出名额，故补回。
+      supp_op:
+        description: "启用一加 8E 支持（非一加设备勿开）"
         required: false
         type: boolean
-        default: true
-      # supp_op（一加 8E 支持）已从手动触发界面移除：workflow_dispatch 上限 25 个 input，
-      # 名额让给 use_nomount。自动触发经 API 传 false，与此处默认值一致，隐藏后由
-      # 透传处的 ${{ inputs.supp_op || false }} 兜底，行为不变。需要开一加 8E 时直接跑
-      # kernel-a1*.yml 单独工作流（那边仍保留该开关）。
+        default: false
       use_nomount:
         description: "启用 NoMount 挂载元模块"
         required: false
@@ -172,8 +171,8 @@ on:
       # 注：ksu_branch_mode 已从手动触发界面移除 —— workflow_dispatch 上限 25 个 input，
       # 自动触发（Auto_Trigger）已占满 24 个必需字段，手动专用项只能留一个（保留 version）。
       # 其转发处用 ${{ inputs.ksu_branch_mode || 'auto' }} 兜底，不声明时自然回退 auto。
-      kpm_patch_sha256:
-        description: "KPM 修补工具 sha256 锚点（留空不校验）。main.yml 透传给各 kernel-* 构建，让自动触发的全量构建也能做 fail-closed 比对"
+      manager_commit:
+        description: "管理器提交 hash（SukiSU/管理器 hash；可选用英文逗号后接 SUSFS hash，留空则不锁定）"
         required: false
         type: string
         default: ""
@@ -185,12 +184,12 @@ jobs:
     secrets: inherit
     with:
       kernelsu_variant: ${{ inputs.kernelsu_variant }}
-      sukisu_commit: ${{ inputs.sukisu_commit || '' }}
+      manager_commit: ${{ inputs.manager_commit }}
       ksu_branch_mode: ${{ inputs.ksu_branch_mode || 'auto' }}
-      manager_spoofed: ${{ inputs.manager_spoofed }}
+      manager_spoofed: true
   # ==================== Android 12 - 5.10 构建 ====================
   build-a12-5-10:
-    if: inputs.build_a12_5_10 || inputs.build_all
+    if: contains(inputs.build_targets, 'a12') || contains(inputs.build_targets, 'all')
     uses: ./.github/workflows/kernel-a12-5-10.yml
     secrets: inherit
     with:
@@ -209,17 +208,21 @@ jobs:
       artifact_upload_mode: "上传全部"
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       called_from_main: true
-      use_bbr: ${{ inputs.use_bbr || false }}
       send_telegram: ${{ inputs.send_telegram || false }}
       use_release_cache: ${{ inputs.use_release_cache || false }}
       supp_op: ${{ inputs.supp_op || false }}
-      sukisu_commit: ${{ inputs.sukisu_commit || '' }}
-      kpm_patch_sha256: ${{ inputs.kpm_patch_sha256 || '' }}
+      manager_commit: ${{ inputs.manager_commit }}
       # ksu_mode 不传：build.yml 默认「关闭」（正常集成 KernelSU）。
       ksu_branch_mode: ${{ inputs.ksu_branch_mode || 'auto' }}
+      # 以下两项目前仍未在手动界面暴露（25 个 input 名额已用满）：
+      #   skip_incompatible —— 可选阶段失败时降级为 warning 而非中断
+      #   ksu_branch_mode   —— 上方已注明，不声明时自然回退 auto
+      # 而 use_net_enhance / susfs_commit 已随本次名额整理改为可调（见 input 定义）。
+      use_net_enhance: ${{ inputs.use_net_enhance || false }}
+      skip_incompatible: false
   # ==================== Android 13 - 5.15 构建 ====================
   build-a13-5-15:
-    if: inputs.build_a13_5_15 || inputs.build_all
+    if: contains(inputs.build_targets, 'a13') || contains(inputs.build_targets, 'all')
     uses: ./.github/workflows/kernel-a13-5-15.yml
     secrets: inherit
     with:
@@ -238,16 +241,20 @@ jobs:
       artifact_upload_mode: "上传全部"
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       called_from_main: true
-      use_bbr: ${{ inputs.use_bbr || false }}
       send_telegram: ${{ inputs.send_telegram || false }}
       use_release_cache: ${{ inputs.use_release_cache || false }}
       supp_op: ${{ inputs.supp_op || false }}
-      sukisu_commit: ${{ inputs.sukisu_commit || '' }}
-      kpm_patch_sha256: ${{ inputs.kpm_patch_sha256 || '' }}
+      manager_commit: ${{ inputs.manager_commit }}
       ksu_branch_mode: ${{ inputs.ksu_branch_mode || 'auto' }}
+      # 以下两项目前仍未在手动界面暴露（25 个 input 名额已用满）：
+      #   skip_incompatible —— 可选阶段失败时降级为 warning 而非中断
+      #   ksu_branch_mode   —— 上方已注明，不声明时自然回退 auto
+      # 而 use_net_enhance / susfs_commit 已随本次名额整理改为可调（见 input 定义）。
+      use_net_enhance: ${{ inputs.use_net_enhance || false }}
+      skip_incompatible: false
   # ==================== Android 14 - 6.1 构建 ====================
   build-a14-6-1:
-    if: inputs.build_a14_6_1 || inputs.build_all
+    if: contains(inputs.build_targets, 'a14') || contains(inputs.build_targets, 'all')
     uses: ./.github/workflows/kernel-a14-6-1.yml
     secrets: inherit
     with:
@@ -266,16 +273,20 @@ jobs:
       artifact_upload_mode: "上传全部"
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       called_from_main: true
-      use_bbr: ${{ inputs.use_bbr || false }}
       send_telegram: ${{ inputs.send_telegram || false }}
       use_release_cache: ${{ inputs.use_release_cache || false }}
       supp_op: ${{ inputs.supp_op || false }}
-      sukisu_commit: ${{ inputs.sukisu_commit || '' }}
-      kpm_patch_sha256: ${{ inputs.kpm_patch_sha256 || '' }}
+      manager_commit: ${{ inputs.manager_commit }}
       ksu_branch_mode: ${{ inputs.ksu_branch_mode || 'auto' }}
+      # 以下两项目前仍未在手动界面暴露（25 个 input 名额已用满）：
+      #   skip_incompatible —— 可选阶段失败时降级为 warning 而非中断
+      #   ksu_branch_mode   —— 上方已注明，不声明时自然回退 auto
+      # 而 use_net_enhance / susfs_commit 已随本次名额整理改为可调（见 input 定义）。
+      use_net_enhance: ${{ inputs.use_net_enhance || false }}
+      skip_incompatible: false
   # ==================== Android 15 - 6.6 构建 ====================
   build-a15-6-6:
-    if: inputs.build_a15_6_6 || inputs.build_all
+    if: contains(inputs.build_targets, 'a15') || contains(inputs.build_targets, 'all')
     uses: ./.github/workflows/kernel-a15-6-6.yml
     secrets: inherit
     with:
@@ -294,16 +305,20 @@ jobs:
       artifact_upload_mode: "上传全部"
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       called_from_main: true
-      use_bbr: ${{ inputs.use_bbr || false }}
       send_telegram: ${{ inputs.send_telegram || false }}
       use_release_cache: ${{ inputs.use_release_cache || false }}
       supp_op: ${{ inputs.supp_op || false }}
-      sukisu_commit: ${{ inputs.sukisu_commit || '' }}
-      kpm_patch_sha256: ${{ inputs.kpm_patch_sha256 || '' }}
+      manager_commit: ${{ inputs.manager_commit }}
       ksu_branch_mode: ${{ inputs.ksu_branch_mode || 'auto' }}
+      # 以下两项目前仍未在手动界面暴露（25 个 input 名额已用满）：
+      #   skip_incompatible —— 可选阶段失败时降级为 warning 而非中断
+      #   ksu_branch_mode   —— 上方已注明，不声明时自然回退 auto
+      # 而 use_net_enhance / susfs_commit 已随本次名额整理改为可调（见 input 定义）。
+      use_net_enhance: ${{ inputs.use_net_enhance || false }}
+      skip_incompatible: false
   # ==================== Android 16 - 6.12 构建 ====================
   build-a16-6-12:
-    if: inputs.build_a16_6_12 || inputs.build_all
+    if: contains(inputs.build_targets, 'a16') || contains(inputs.build_targets, 'all')
     uses: ./.github/workflows/kernel-a16-6-12.yml
     secrets: inherit
     with:
@@ -322,13 +337,17 @@ jobs:
       artifact_upload_mode: "上传全部"
       droidspaces_ntsync: ${{ inputs.droidspaces_ntsync }}
       called_from_main: true
-      use_bbr: ${{ inputs.use_bbr || false }}
       send_telegram: ${{ inputs.send_telegram || false }}
       use_release_cache: ${{ inputs.use_release_cache || false }}
       supp_op: ${{ inputs.supp_op || false }}
-      sukisu_commit: ${{ inputs.sukisu_commit || '' }}
-      kpm_patch_sha256: ${{ inputs.kpm_patch_sha256 || '' }}
+      manager_commit: ${{ inputs.manager_commit }}
       ksu_branch_mode: ${{ inputs.ksu_branch_mode || 'auto' }}
+      # 以下两项目前仍未在手动界面暴露（25 个 input 名额已用满）：
+      #   skip_incompatible —— 可选阶段失败时降级为 warning 而非中断
+      #   ksu_branch_mode   —— 上方已注明，不声明时自然回退 auto
+      # 而 use_net_enhance / susfs_commit 已随本次名额整理改为可调（见 input 定义）。
+      use_net_enhance: ${{ inputs.use_net_enhance || false }}
+      skip_incompatible: false
   # ==================== 收集补丁冲突文件 ====================
   # 汇总所有构建任务中的 .rej 文件，方便调试补丁问题
   collect-rejects:
@@ -662,7 +681,14 @@ jobs:
           # 功能开关显示
           echo "LZ4_STATUS=${{ inputs.use_zram && '开启' || '未开启' }}" >> $GITHUB_ENV
           echo "BBG_STATUS=${{ inputs.use_bbg && '支持' || '不支持' }}" >> $GITHUB_ENV
-          if [[ "${{ inputs.use_kpm }}" == enabled* ]]; then
+          # KPM 只有 SukiSU 变体提供。ReSukiSU / Official / Next 的内核 Kconfig 里
+          # 没有 config KPM，构建脚本会把 KPM 阶段整段跳过，这里如实反映——
+          # 否则 Release 列表会挂着「支持（已修补镜像）」，实际却加载不了 KPM 模块。
+          if [[ "${{ inputs.kernelsu_variant }}" == "ReSukiSU" ]] \
+             || [[ "${{ inputs.kernelsu_variant }}" == "Official" ]] \
+             || [[ "${{ inputs.kernelsu_variant }}" == "Next" ]]; then
+            echo "KPM_STATUS=不支持（变体未提供 KPM）" >> $GITHUB_ENV
+          elif [[ "${{ inputs.use_kpm }}" == enabled* ]]; then
             echo "KPM_STATUS=支持" >> $GITHUB_ENV
           elif [[ "${{ inputs.use_kpm }}" == patched* ]]; then
             echo "KPM_STATUS=支持（已修补镜像）" >> $GITHUB_ENV
@@ -707,11 +733,11 @@ jobs:
               failed=1
             fi
           }
-          check_build "${{ inputs.build_a12_5_10 || inputs.build_all }}" "build-a12-5-10" "${{ needs.build-a12-5-10.result }}"
-          check_build "${{ inputs.build_a13_5_15 || inputs.build_all }}" "build-a13-5-15" "${{ needs.build-a13-5-15.result }}"
-          check_build "${{ inputs.build_a14_6_1 || inputs.build_all }}" "build-a14-6-1" "${{ needs.build-a14-6-1.result }}"
-          check_build "${{ inputs.build_a15_6_6 || inputs.build_all }}" "build-a15-6-6" "${{ needs.build-a15-6-6.result }}"
-          check_build "${{ inputs.build_a16_6_12 || inputs.build_all }}" "build-a16-6-12" "${{ needs.build-a16-6-12.result }}"
+          check_build "${{ contains(inputs.build_targets, 'a12') || contains(inputs.build_targets, 'all') }}" "build-a12-5-10" "${{ needs.build-a12-5-10.result }}"
+          check_build "${{ contains(inputs.build_targets, 'a13') || contains(inputs.build_targets, 'all') }}" "build-a13-5-15" "${{ needs.build-a13-5-15.result }}"
+          check_build "${{ contains(inputs.build_targets, 'a14') || contains(inputs.build_targets, 'all') }}" "build-a14-6-1" "${{ needs.build-a14-6-1.result }}"
+          check_build "${{ contains(inputs.build_targets, 'a15') || contains(inputs.build_targets, 'all') }}" "build-a15-6-6" "${{ needs.build-a15-6-6.result }}"
+          check_build "${{ contains(inputs.build_targets, 'a16') || contains(inputs.build_targets, 'all') }}" "build-a16-6-12" "${{ needs.build-a16-6-12.result }}"
           [[ "$failed" -ne 0 ]] && exit 1 || true
 
       # ==================== 检出代码 ====================
@@ -817,11 +843,11 @@ jobs:
               fi
             fi
           }
-          append_target "${{ inputs.build_a12_5_10 || inputs.build_all }}" "Android 12 / 5.10"
-          append_target "${{ inputs.build_a13_5_15 || inputs.build_all }}" "Android 13 / 5.15"
-          append_target "${{ inputs.build_a14_6_1 || inputs.build_all }}" "Android 14 / 6.1"
-          append_target "${{ inputs.build_a15_6_6 || inputs.build_all }}" "Android 15 / 6.6"
-          append_target "${{ inputs.build_a16_6_12 || inputs.build_all }}" "Android 16 / 6.12"
+          append_target "${{ contains(inputs.build_targets, 'a12') || contains(inputs.build_targets, 'all') }}" "Android 12 / 5.10"
+          append_target "${{ contains(inputs.build_targets, 'a13') || contains(inputs.build_targets, 'all') }}" "Android 13 / 5.15"
+          append_target "${{ contains(inputs.build_targets, 'a14') || contains(inputs.build_targets, 'all') }}" "Android 14 / 6.1"
+          append_target "${{ contains(inputs.build_targets, 'a15') || contains(inputs.build_targets, 'all') }}" "Android 15 / 6.6"
+          append_target "${{ contains(inputs.build_targets, 'a16') || contains(inputs.build_targets, 'all') }}" "Android 16 / 6.12"
           if [[ -z "$build_targets" ]]; then
             build_targets="未选择"
           fi
@@ -833,11 +859,11 @@ jobs:
               printf -- '- %s: [`%s`](%s)\n' "$label" "${hash:0:7}" "$url" >> susfs_commits.md
             fi
           }
-          append_susfs_commit "${{ inputs.build_a12_5_10 || inputs.build_all }}" "Android 12 / 5.10" "${COMMIT_HASH_gki_android12_5_10}" "${COMMIT_URL_gki_android12_5_10}"
-          append_susfs_commit "${{ inputs.build_a13_5_15 || inputs.build_all }}" "Android 13 / 5.15" "${COMMIT_HASH_gki_android13_5_15}" "${COMMIT_URL_gki_android13_5_15}"
-          append_susfs_commit "${{ inputs.build_a14_6_1 || inputs.build_all }}" "Android 14 / 6.1" "${COMMIT_HASH_gki_android14_6_1}" "${COMMIT_URL_gki_android14_6_1}"
-          append_susfs_commit "${{ inputs.build_a15_6_6 || inputs.build_all }}" "Android 15 / 6.6" "${COMMIT_HASH_gki_android15_6_6}" "${COMMIT_URL_gki_android15_6_6}"
-          append_susfs_commit "${{ inputs.build_a16_6_12 || inputs.build_all }}" "Android 16 / 6.12" "${COMMIT_HASH_gki_android16_6_12}" "${COMMIT_URL_gki_android16_6_12}"
+          append_susfs_commit "${{ contains(inputs.build_targets, 'a12') || contains(inputs.build_targets, 'all') }}" "Android 12 / 5.10" "${COMMIT_HASH_gki_android12_5_10}" "${COMMIT_URL_gki_android12_5_10}"
+          append_susfs_commit "${{ contains(inputs.build_targets, 'a13') || contains(inputs.build_targets, 'all') }}" "Android 13 / 5.15" "${COMMIT_HASH_gki_android13_5_15}" "${COMMIT_URL_gki_android13_5_15}"
+          append_susfs_commit "${{ contains(inputs.build_targets, 'a14') || contains(inputs.build_targets, 'all') }}" "Android 14 / 6.1" "${COMMIT_HASH_gki_android14_6_1}" "${COMMIT_URL_gki_android14_6_1}"
+          append_susfs_commit "${{ contains(inputs.build_targets, 'a15') || contains(inputs.build_targets, 'all') }}" "Android 15 / 6.6" "${COMMIT_HASH_gki_android15_6_6}" "${COMMIT_URL_gki_android15_6_6}"
+          append_susfs_commit "${{ contains(inputs.build_targets, 'a16') || contains(inputs.build_targets, 'all') }}" "Android 16 / 6.12" "${COMMIT_HASH_gki_android16_6_12}" "${COMMIT_URL_gki_android16_6_12}"
           if [[ "${{ inputs.enable_susfs }}" != "true" ]]; then
             echo "- 本次构建未集成 SUSFS" > susfs_commits.md
           elif [[ ! -s susfs_commits.md ]]; then
@@ -943,7 +969,10 @@ jobs:
           EOF
 
       # ==================== 生成版本标签 ====================
-      # 根据 SUSFS 版本生成递增的发布标签
+      # tag 形如 <SUSFS版本>-r<N>-<变体>。
+      # 变体后缀是必须的：ReSukiSU 与 SukiSU 各有独立的定时检测工作流，两路若共用
+      # 同一套 -rN 序列，后发那次会算出已存在的 tag，gh release create 失败、
+      # 该次全部产物静默丢失。所以按变体各自计数。
       - name: 生成版本标签
         run: |
           # 获取 SUSFS 版本，如果 get-manager 被跳过则使用默认值
@@ -953,17 +982,28 @@ jobs:
             SUS_VERSION="1.0.0"
           fi
 
-          LATEST_TAG=$(gh api repos/$REPO_OWNER/$REPO_NAME/tags --jq '.[0].name' 2>/dev/null | sed 's/-.*//' || echo "")
+          # 括号在 tag 名里虽可用，但命令行与 URL 里都不便，统一去掉
+          VARIANT="${{ inputs.kernelsu_variant }}"
+          VARIANT_SLUG=$(printf '%s' "$VARIANT" | tr -d '() ')
 
-          if [ "$SUS_VERSION" = "$LATEST_TAG" ]; then
-            LATEST_TAG=$(gh api repos/$REPO_OWNER/$REPO_NAME/tags --jq '.[0].name')
-          else
-            LATEST_TAG="$SUS_VERSION-r0"
+          # 只在同一变体内递增。
+          # 不能像以前那样取 tags 列表的 [0]：两个变体交叉发布时 [0] 常常是另一个
+          # 变体的 tag，"版本相同则递进"那个判断会落到备分支、计数从头再来。
+          # --paginate 是必要的：单页只有 100 个 tag，交叉发布下窗口不够。
+          # pipeline 末尾的 || true 不可省：gh 调用失败或 grep 无匹配时，
+          # 在 Actions 的 bash -e -o pipefail 下会让整个步骤失败。
+          LATEST_N=$(gh api --paginate "repos/$REPO_OWNER/$REPO_NAME/tags?per_page=100" --jq -r '.[].name' 2>/dev/null \
+            | grep -E "^${SUS_VERSION}-r[0-9]+-${VARIANT_SLUG}$" \
+            | sed -E "s/^${SUS_VERSION}-r([0-9]+)-${VARIANT_SLUG}$/\1/" \
+            | sort -n | tail -1 || true)
+
+          if [ -z "$LATEST_N" ]; then
+            LATEST_N=0
+            echo "该变体此前没有 <$SUS_VERSION> 的发布，从 -r1 起算"
           fi
-
-          NEW_TAG=$(echo "$LATEST_TAG" | awk -F'-r' '{suffix=$2; if (!suffix) suffix=0; suffix++; printf "%s-r%d", $1, suffix}')
+          NEW_TAG="${SUS_VERSION}-r$((LATEST_N + 1))-${VARIANT_SLUG}"
           echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
-          echo "生成标签: $NEW_TAG"
+          echo "生成标签: $NEW_TAG（变体 $VARIANT，上一版 -r${LATEST_N}）"
 
       # ==================== 下载构建产物 ====================
       - name: 下载构建产物
